@@ -12,6 +12,7 @@ provider:
   iam:
     role: arn:aws:iam::${env:AWS_ACCOUNT_ID}:role/${env:ROLE_NAME}
   environment:
+    INCIDENTS_TABLE: ${env:INCIDENTS_TABLE}
     USERS_TABLE: ${env:USERS_TABLE}
     SOCKET_TABLE: ${env:SOCKET_TABLE}
     JWT_SECRET: ${env:JWT_SECRET}
