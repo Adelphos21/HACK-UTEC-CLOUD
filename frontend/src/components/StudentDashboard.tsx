@@ -1,7 +1,10 @@
 import React, { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
-import { Bell, LogOut, Plus, X, MapPin, Clock, Loader2 } from 'lucide-react';
+import { LogOut, Plus, X, MapPin, Clock, Loader2 } from 'lucide-react';
 import type { DashboardProps, Incident } from '../types';
 import { incidentsApi, INCIDENT_TYPES, URGENCY_LEVELS, INCIDENT_TYPE_LABELS, URGENCY_LABELS, STATUS_LABELS } from '../api';
+import { useWebSocket, type Notification } from '../hooks/useWebSocket';
+import NotificationsPanel from './NotificationsPanel';
+import ToastContainer from './ToastContainer';
 
 const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -9,6 +12,36 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [showReportForm, setShowReportForm] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [toasts, setToasts] = useState<Notification[]>([]);
+
+  // 🔔 Hook de WebSocket
+  const {
+    isConnected,
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    clearNotifications,
+    clearNotification
+  } = useWebSocket({
+    userId: user.user_id,
+    rol: user.rol,
+    onNotification: (notification) => {
+      // Mostrar toast cuando llega una nueva notificación
+      setToasts(prev => [...prev, notification]);
+      
+      // Si es una actualización de incidente del estudiante, recargar la lista
+      if (notification.type === 'actualizacion_incidente' || 
+          notification.type === 'incidente_editado' ||
+          notification.type === 'cambio_estado_incidente') {
+        loadIncidents();
+      }
+    }
+  });
+
+  const removeToast = (toastId: string) => {
+    setToasts(prev => prev.filter(t => t.id !== toastId));
+  };
   
   const [newReport, setNewReport] = useState({
     type: INCIDENT_TYPES.SECURITY,
@@ -18,6 +51,61 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     urgency: URGENCY_LEVELS.MEDIUM,
     created_by: user.user_id || ''
   });
+
+  // 🔧 Función auxiliar para formatear fechas de forma segura
+  const formatDate = (dateString: string | undefined): { timestamp: string; fecha: string } => {
+    try {
+      if (!dateString) {
+        // Si no hay fecha, usar la actual
+        const now = new Date();
+        return {
+          timestamp: now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          fecha: now.toISOString().split('T')[0]
+        };
+      }
+
+      const date = new Date(dateString);
+      
+      // Verificar si la fecha es válida
+      if (isNaN(date.getTime())) {
+        console.warn('Fecha inválida recibida:', dateString);
+        const now = new Date();
+        return {
+          timestamp: now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          fecha: now.toISOString().split('T')[0]
+        };
+      }
+
+      return {
+        timestamp: date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+        fecha: date.toISOString().split('T')[0]
+      };
+    } catch (err) {
+      console.error('Error formateando fecha:', err);
+      const now = new Date();
+      return {
+        timestamp: now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+        fecha: now.toISOString().split('T')[0]
+      };
+    }
+  };
+
+  // 🔧 Función para convertir datos de API a formato del componente
+  const mapIncidentFromAPI = (inc: any): Incident => {
+    const { timestamp, fecha } = formatDate(inc.created_at);
+    
+    return {
+      id: inc.incident_id || inc.id || 'unknown',
+      tipo: INCIDENT_TYPE_LABELS[inc.type] || inc.type || 'Desconocido',
+      urgencia: (URGENCY_LABELS[inc.urgency] || inc.urgency || 'Media') as 'Baja' | 'Media' | 'Alta' | 'Crítica',
+      descripcion: inc.description || 'Sin descripción',
+      ubicacion: `Piso ${inc.floor || 0}${inc.ambient ? ' - ' + inc.ambient : ''}`,
+      estado: (STATUS_LABELS[inc.status] || inc.status || 'Pendiente') as 'Pendiente' | 'En Atención' | 'Resuelto',
+      timestamp,
+      fecha,
+      reportadoPor: inc.created_by || 'Desconocido'
+    };
+  };
 
   // Cargar incidentes al montar el componente
   useEffect(() => {
@@ -29,34 +117,20 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     setError('');
     
     try {
-      // Obtener user_id del usuario actual
-      const userId = user.user_id || localStorage.getItem('user_id');
+      // Obtener user_id del prop user (que ya está en memoria)
+      const userId = user.user_id;
       
       if (!userId) {
         setError('No se pudo obtener el ID del usuario');
+        console.error('❌ user_id no encontrado en:', user);
         return;
       }
 
-      // Usar el endpoint by-student para obtener solo los incidentes del estudiante
+      
       const response = await incidentsApi.getByStudent(userId);
       
       if (response.success && response.data) {
-        // Convertir formato de API al formato del componente
-        const formattedIncidents: Incident[] = response.data.map(inc => ({
-          id: inc.incident_id,
-          tipo: INCIDENT_TYPE_LABELS[inc.type] || inc.type,
-          urgencia: URGENCY_LABELS[inc.urgency] || inc.urgency,
-          descripcion: inc.description,
-          ubicacion: `Piso ${inc.floor} - ${inc.ambient}`,
-          estado: STATUS_LABELS[inc.status] || inc.status,
-          timestamp: new Date(inc.created_at).toLocaleTimeString('es-PE', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          fecha: new Date(inc.created_at).toISOString().split('T')[0],
-          reportadoPor: inc.created_by
-        }));
-        
+        const formattedIncidents = response.data.map(mapIncidentFromAPI);
         setIncidents(formattedIncidents);
       } else {
         setError(response.error || 'Error al cargar incidentes');
@@ -75,24 +149,17 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     setError('');
     
     try {
+      
+      
       const response = await incidentsApi.create(newReport);
       
+      
+      
       if (response.success && response.data) {
-        // Agregar el nuevo incidente a la lista
-        const newIncident: Incident = {
-          id: response.data.incident_id,
-          tipo: INCIDENT_TYPE_LABELS[response.data.type] || response.data.type,
-          urgencia: URGENCY_LABELS[response.data.urgency] || response.data.urgency,
-          descripcion: response.data.description,
-          ubicacion: `Piso ${response.data.floor} - ${response.data.ambient}`,
-          estado: STATUS_LABELS[response.data.status] || response.data.status,
-          timestamp: new Date(response.data.created_at).toLocaleTimeString('es-PE', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          fecha: new Date(response.data.created_at).toISOString().split('T')[0],
-          reportadoPor: response.data.created_by
-        };
+        // Convertir el incidente usando la función auxiliar
+        const newIncident = mapIncidentFromAPI(response.data);
+        
+        
         
         setIncidents([newIncident, ...incidents]);
         setShowReportForm(false);
@@ -106,12 +173,15 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           urgency: URGENCY_LEVELS.MEDIUM,
           created_by: user.user_id || ''
         });
+        
+        // Mostrar mensaje de éxito
+        alert('✅ Incidente reportado exitosamente');
       } else {
-        setError(response.error || 'Error al crear el reporte');
+        setError(response.error || response.message || 'Error al crear el reporte');
       }
     } catch (err) {
       console.error('Error creando reporte:', err);
-      setError('Error de conexión');
+      setError(err instanceof Error ? err.message : 'Error de conexión');
     } finally {
       setSubmitting(false);
     }
@@ -156,9 +226,24 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
-              <Bell className="w-6 h-6 text-gray-600" />
-            </button>
+            {/* 🔔 Panel de Notificaciones */}
+            <NotificationsPanel
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onClearNotification={clearNotification}
+              onClearAll={clearNotifications}
+            />
+            
+            {/* Indicador de conexión WebSocket */}
+            {!isConnected && (
+              <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                Reconectando...
+              </div>
+            )}
+            
             <button
               onClick={onLogout}
               className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -297,7 +382,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 <label className="block text-gray-700 font-medium mb-2">Tipo de Incidente</label>
                 <select
                   value={newReport.type}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, type: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, type: e.target.value as typeof newReport.type })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   disabled={submitting}
                 >
@@ -353,7 +438,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 <label className="block text-gray-700 font-medium mb-2">Urgencia</label>
                 <select
                   value={newReport.urgency}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, urgency: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, urgency: e.target.value as typeof newReport.urgency })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   disabled={submitting}
                 >
@@ -391,6 +476,9 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
         </div>
       )}
+      
+      {/* 🍞 Contenedor de Toasts */}
+      <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
     </div>
   );
 };

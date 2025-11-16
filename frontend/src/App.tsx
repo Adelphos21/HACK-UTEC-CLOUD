@@ -18,17 +18,14 @@ function App() {
         const savedToken = localStorage.getItem('access_token');
         const savedUserData = localStorage.getItem('user_data');
         
-        console.log('🔍 Buscando sesión guardada...');
-        console.log('Token:', savedToken ? '✅ Encontrado' : '❌ No encontrado');
-        console.log('User data:', savedUserData ? '✅ Encontrado' : '❌ No encontrado');
         
         if (savedToken && savedUserData) {
           const userData = JSON.parse(savedUserData);
-          console.log('✅ Sesión restaurada:', userData);
+          
           setUser(userData);
           setToken(savedToken);
         } else {
-          console.log('❌ No hay sesión guardada');
+          
         }
       } catch (error) {
         console.error('❌ Error restaurando sesión:', error);
@@ -45,7 +42,7 @@ function App() {
   }, []);
 
   const handleLogin = (userData: User, authToken: string) => {
-    console.log('🔐 Login exitoso:', userData);
+    console.log('Login exitoso:', userData);
     
     // Guardar en estado
     setUser(userData);
@@ -57,11 +54,11 @@ function App() {
     localStorage.setItem('user_data', JSON.stringify(userData));
     localStorage.setItem('user_id', userData.user_id);
     
-    console.log('💾 Sesión guardada en localStorage');
+    
   };
 
   const handleLogout = () => {
-    console.log('👋 Cerrando sesión...');
+    
     
     // Limpiar estado
     setUser(null);
@@ -74,7 +71,7 @@ function App() {
     localStorage.removeItem('user_id');
     localStorage.removeItem('refresh_token');
     
-    console.log('✅ Sesión cerrada');
+    console.log(' Sesión cerrada');
   };
 
   const handleShowRegister = () => {

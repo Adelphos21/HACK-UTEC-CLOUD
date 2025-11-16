@@ -22,10 +22,16 @@ export interface Incident {
   urgencia: 'Baja' | 'Media' | 'Alta' | 'Crítica';
   descripcion: string;
   ubicacion: string;
-  estado: 'Pendiente' | 'En Atención' | 'Resuelto';
+  estado: 'Pendiente' | 'En Atención' | 'Resuelto' | 'Rechazado';
   timestamp: string;
   fecha: string;
-  reportadoPor?: string;
+  reportadoPor: string;
+  _raw?: {
+    floor: number;
+    urgency: string;
+    status: string;
+    created_by: string;
+  };
 }
 
 export interface NewReport {

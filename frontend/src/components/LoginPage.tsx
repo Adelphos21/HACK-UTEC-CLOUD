@@ -49,7 +49,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onShowRegister }) => {
           );
           const decoded = JSON.parse(jsonPayload);
           
-          console.log('🔓 JWT decodificado:', decoded);
+          
           
           // Construir objeto user con datos del JWT
           const userData = {
@@ -62,14 +62,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onShowRegister }) => {
             dni: ''
           };
           
-          console.log('📦 User data construido:', userData);
+          
           
           // Guardar en localStorage antes de llamar a onLogin
           localStorage.setItem('access_token', accessToken);
           localStorage.setItem('user_id', decoded.user_id);
           localStorage.setItem('user_data', JSON.stringify(userData));
           
-          console.log('💾 Datos guardados en localStorage');
+          
           
           onLogin(userData, accessToken);
         } catch (err) {

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, type ChangeEvent } from 'react';
-import { Bell, LogOut, X, MapPin, Clock, Filter, Loader2, RefreshCw } from 'lucide-react';
+import { LogOut, X, MapPin, Clock, Filter, Loader2, RefreshCw } from 'lucide-react';
 import type { DashboardProps, Incident } from '../types';
-import { incidentsApi, INCIDENT_STATUS, URGENCY_LEVELS, STATUS_LABELS, URGENCY_LABELS } from '../api';
+import { incidentsApi, INCIDENT_STATUS, URGENCY_LEVELS, STATUS_LABELS, URGENCY_LABELS, INCIDENT_TYPE_LABELS } from '../api';
+import { useWebSocket, type Notification } from '../hooks/useWebSocket';
+import NotificationsPanel from './NotificationsPanel';
+import ToastContainer from './ToastContainer';
 
 const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -10,13 +13,103 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [updating, setUpdating] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [toasts, setToasts] = useState<Notification[]>([]);
   
-  // Estados de filtros - CORREGIDOS para usar los valores reales del backend
+  // Estados de filtros
   const [filters, setFilters] = useState({
     floor: '',
     urgency: '',
+    status: '',
     studentId: ''
   });
+
+  // 🔔 Hook de WebSocket
+  const {
+    isConnected,
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    clearNotifications,
+    clearNotification
+  } = useWebSocket({
+    userId: user.user_id,
+    rol: user.rol,
+    onNotification: (notification) => {
+      // Mostrar toast
+      setToasts(prev => [...prev, notification]);
+      
+      // Recargar incidentes cuando hay cambios
+      if (notification.type === 'nuevo_incidente' || 
+          notification.type === 'cambio_estado_incidente') {
+        loadIncidents();
+      }
+    }
+  });
+
+  const removeToast = (toastId: string) => {
+    setToasts(prev => prev.filter(t => t.id !== toastId));
+  };
+
+  // 🔧 Función auxiliar para formatear fechas de forma segura
+  const formatDate = (dateString: string | undefined): { timestamp: string; fecha: string } => {
+    try {
+      if (!dateString) {
+        const now = new Date();
+        return {
+          timestamp: now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          fecha: now.toISOString().split('T')[0]
+        };
+      }
+
+      const date = new Date(dateString);
+      
+      if (isNaN(date.getTime())) {
+        console.warn('Fecha inválida recibida:', dateString);
+        const now = new Date();
+        return {
+          timestamp: now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          fecha: now.toISOString().split('T')[0]
+        };
+      }
+
+      return {
+        timestamp: date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+        fecha: date.toISOString().split('T')[0]
+      };
+    } catch (err) {
+      console.error('Error formateando fecha:', err);
+      const now = new Date();
+      return {
+        timestamp: now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+        fecha: now.toISOString().split('T')[0]
+      };
+    }
+  };
+
+  // Mapear incidente de API al formato del componente
+  const mapIncidentFromAPI = (inc: any): Incident => {
+    const { timestamp, fecha } = formatDate(inc.created_at);
+    
+    return {
+      id: inc.incident_id || 'unknown',
+      tipo: INCIDENT_TYPE_LABELS[inc.type] || inc.type || 'Desconocido',
+      urgencia: (URGENCY_LABELS[inc.urgency] || inc.urgency || 'Media') as 'Baja' | 'Media' | 'Alta' | 'Crítica',
+      descripcion: inc.description || 'Sin descripción',
+      ubicacion: `Piso ${inc.floor || 0}${inc.ambient ? ' - ' + inc.ambient : ''}`,
+      estado: (STATUS_LABELS[inc.status] || inc.status || 'Pendiente') as 'Pendiente' | 'En Atención' | 'Resuelto',
+      timestamp,
+      fecha,
+      reportadoPor: inc.reported_by_name || inc.created_by || 'Desconocido',
+      // Guardar datos originales para filtrado
+      _raw: {
+        floor: inc.floor,
+        urgency: inc.urgency,
+        status: inc.status,
+        created_by: inc.created_by
+      }
+    };
+  };
 
   // Cargar incidentes al montar el componente
   useEffect(() => {
@@ -28,46 +121,41 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     setError('');
     
     try {
-      let allIncidents: Incident[] = [];
-
-      // Si hay filtro por piso, usar endpoint específico
-      if (filters.floor) {
-        const response = await incidentsApi.getByFloor(parseInt(filters.floor));
-        if (response.success && response.data) {
-          allIncidents = response.data.map(mapIncidentFromAPI);
-        } else {
-          setError(response.error || 'Error al cargar incidentes');
-        }
-      }
-      // Si hay filtro por urgencia, usar endpoint específico
-      else if (filters.urgency) {
-        const response = await incidentsApi.getByUrgency(filters.urgency);
-        if (response.success && response.data) {
-          allIncidents = response.data.map(mapIncidentFromAPI);
-        } else {
-          setError(response.error || 'Error al cargar incidentes');
-        }
-      }
-      // Si hay filtro por estudiante, usar endpoint específico
-      else if (filters.studentId) {
-        const response = await incidentsApi.getByStudent(filters.studentId);
-        if (response.success && response.data) {
-          allIncidents = response.data.map(mapIncidentFromAPI);
-        } else {
-          setError(response.error || 'Error al cargar incidentes');
-        }
-      }
-      // obtener TODOS los incidentes
-      else {
-        const response = await incidentsApi.getAll();
-        if (response.success && response.data) {
-          allIncidents = response.data.map(mapIncidentFromAPI);
-        } else {
-          setError(response.error || 'Error al cargar incidentes');
-        }
-      }
+      // 🔧 SIEMPRE obtener TODOS los incidentes y filtrar en el cliente
+      const response = await incidentsApi.getAll();
       
-      setIncidents(allIncidents);
+      if (response.success && response.data) {
+        const allIncidents = response.data.map(mapIncidentFromAPI);
+        
+        // 🔧 Aplicar filtros en el cliente
+        const filteredIncidents = allIncidents.filter(incident => {
+          // Filtro por piso
+          if (filters.floor && incident._raw?.floor !== parseInt(filters.floor)) {
+            return false;
+          }
+          
+          // Filtro por urgencia
+          if (filters.urgency && incident._raw?.urgency !== filters.urgency) {
+            return false;
+          }
+          
+          // Filtro por estado
+          if (filters.status && incident._raw?.status !== filters.status) {
+            return false;
+          }
+          
+          // Filtro por estudiante
+          if (filters.studentId && incident._raw?.created_by !== filters.studentId) {
+            return false;
+          }
+          
+          return true;
+        });
+        
+        setIncidents(filteredIncidents);
+      } else {
+        setError(response.error || 'Error al cargar incidentes');
+      }
     } catch (err) {
       console.error('Error cargando incidentes:', err);
       setError('Error de conexión');
@@ -75,22 +163,6 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       setLoading(false);
     }
   };
-
-  // Mapear incidente de API al formato del componente
-  const mapIncidentFromAPI = (inc: any): Incident => ({
-    id: inc.incident_id,
-    tipo: inc.type,
-    urgencia: URGENCY_LABELS[inc.urgency] || inc.urgency,
-    descripcion: inc.description,
-    ubicacion: `Piso ${inc.floor} - ${inc.ambient}`,
-    estado: STATUS_LABELS[inc.status] || inc.status,
-    timestamp: new Date(inc.created_at).toLocaleTimeString('es-PE', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    }),
-    fecha: new Date(inc.created_at).toISOString().split('T')[0],
-    reportadoPor: inc.reported_by_name || inc.created_by  // ✅ USAR reported_by_name
-  });
 
   const handleFilterChange = (e: ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -101,6 +173,7 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     setFilters({
       floor: '',
       urgency: '',
+      status: '',
       studentId: ''
     });
   };
@@ -110,14 +183,13 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     if (!loading) {
       loadIncidents();
     }
-  }, [filters.floor, filters.urgency, filters.studentId]);
+  }, [filters.floor, filters.urgency, filters.status, filters.studentId]);
 
   const updateIncidentStatus = async (id: string, newStatus: string) => {
     setUpdating(true);
     setError('');
     
     try {
-      // Obtener user_id del usuario actual
       const userId = user.user_id || localStorage.getItem('user_id') || 'admin';
       
       const response = await incidentsApi.updateStatus({
@@ -127,7 +199,6 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       });
       
       if (response.success) {
-        // Recargar incidentes para obtener datos actualizados
         await loadIncidents();
         setSelectedIncident(null);
       } else {
@@ -191,9 +262,25 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             >
               <RefreshCw className={`w-6 h-6 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
-              <Bell className="w-6 h-6 text-gray-600" />
-            </button>
+            
+            {/* 🔔 Panel de Notificaciones */}
+            <NotificationsPanel
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onMarkAsRead={markAsRead}
+              onMarkAllAsRead={markAllAsRead}
+              onClearNotification={clearNotification}
+              onClearAll={clearNotifications}
+            />
+            
+            {/* Indicador de conexión WebSocket */}
+            {!isConnected && (
+              <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                Reconectando...
+              </div>
+            )}
+            
             <button
               onClick={onLogout}
               className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -269,7 +356,7 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Piso
@@ -309,6 +396,25 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estado
+                </label>
+                <select
+                  name="status"
+                  value={filters.status}
+                  onChange={handleFilterChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  disabled={loading}
+                >
+                  <option value="">Todos</option>
+                  <option value={INCIDENT_STATUS.PENDING}>Pendiente</option>
+                  <option value={INCIDENT_STATUS.IN_PROGRESS}>En Atención</option>
+                  <option value={INCIDENT_STATUS.COMPLETED}>Resuelto</option>
+                  <option value={INCIDENT_STATUS.REJECTED}>Rechazado</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   ID de Estudiante
                 </label>
                 <input
@@ -318,6 +424,7 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   onChange={handleFilterChange}
                   placeholder="UUID del estudiante"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -349,7 +456,9 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 No se encontraron incidentes
               </h3>
               <p className="text-gray-500">
-                Intenta ajustar los filtros para ver más resultados
+                {activeFiltersCount > 0 
+                  ? 'Intenta ajustar los filtros para ver más resultados'
+                  : 'No hay incidentes registrados en el sistema'}
               </p>
               {activeFiltersCount > 0 && (
                 <button
@@ -480,6 +589,9 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
         </div>
       )}
+      
+      {/* 🍞 Contenedor de Toasts */}
+      <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
     </div>
   );
 };

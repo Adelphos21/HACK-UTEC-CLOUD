@@ -1,6 +1,6 @@
 // Configuración de la API
-const API_BASE_URL = 'https://j6du3eoo60.execute-api.us-east-1.amazonaws.com/dev';
-const WS_URL = 'wss://f5nub27py5.execute-api.us-east-1.amazonaws.com/dev';
+const API_BASE_URL = 'https://lcka7svflg.execute-api.us-east-1.amazonaws.com/dev';
+const WS_URL = 'wss://2t8thie4b3.execute-api.us-east-1.amazonaws.com/dev';
 
 // ==================== CONSTANTES ====================
 
@@ -149,6 +149,7 @@ export interface UpdateIncidentStatusRequest {
 }
 
 // Helper para manejar errores
+// Helper para manejar errores
 const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> => {
   const contentType = response.headers.get('content-type');
   
@@ -175,6 +176,31 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
   try {
     if (contentType?.includes('application/json')) {
       const data = await response.json();
+      
+      
+      
+      // 🔧 CASO 1: Backend ya envía {success: true, data: {...}}
+      if (typeof data === 'object' && data !== null && 'success' in data && 'data' in data) {
+        
+        return {
+          success: data.success,
+          data: data.data as T,
+          message: data.message
+        };
+      }
+      
+      // 🔧 CASO 2: Backend solo envía {data: {...}, message: ...} sin success
+      if (typeof data === 'object' && data !== null && 'data' in data && !('success' in data)) {
+        
+        return {
+          success: true,
+          data: data.data as T,
+          message: data.message
+        };
+      }
+      
+      // 🔧 CASO 3: Backend envía el objeto directamente (sin wrappers)
+      
       return {
         success: true,
         data: data as T
@@ -183,6 +209,24 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
       const text = await response.text();
       try {
         const data = JSON.parse(text);
+        
+        // Aplicar la misma lógica que arriba
+        if (typeof data === 'object' && data !== null && 'success' in data && 'data' in data) {
+          return {
+            success: data.success,
+            data: data.data as T,
+            message: data.message
+          };
+        }
+        
+        if (typeof data === 'object' && data !== null && 'data' in data && !('success' in data)) {
+          return {
+            success: true,
+            data: data.data as T,
+            message: data.message
+          };
+        }
+        
         return {
           success: true,
           data: data as T
@@ -195,6 +239,7 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
       }
     }
   } catch (e) {
+    console.error('❌ Error procesando respuesta:', e);
     return {
       success: false,
       error: 'Error al procesar la respuesta'
