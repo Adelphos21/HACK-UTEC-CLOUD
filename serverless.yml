@@ -22,8 +22,6 @@ provider:
 functions:
   CrearIncidente:
     handler: lambdas/Incidentes/CrearIncidente.lambda_handler
-    environment:
-      INCIDENTS_TABLE: Incidents
     events:
       - http:
           path: /incidents/create
@@ -32,8 +30,6 @@ functions:
 
   EditarIncidente:
     handler: lambdas/Incidentes/EditarIncidente.lambda_handler
-    environment:
-      INCIDENTS_TABLE: Incidents
     events:
       - http:
           path: /incidents/edit
@@ -42,8 +38,6 @@ functions:
 
   ActualizarEstadoIncidente:
     handler: lambdas/Incidentes/ActualizarEstadoIncidente.lambda_handler
-    environment:
-      INCIDENTS_TABLE: Incidents
     events:
       - http:
           path: /incidents/update-status
