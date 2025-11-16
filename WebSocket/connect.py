@@ -1,19 +1,34 @@
 import boto3
-import json
 import os
+import jwt
 
 dynamodb = boto3.resource("dynamodb")
-table_name = os.environ["SOCKET_TABLE"]
-table = dynamodb.Table(table_name)
+table = dynamodb.Table(os.environ["SOCKET_TABLE"])
 
 def handler(event, context):
+
     connection_id = event["requestContext"]["connectionId"]
 
-    # Datos enviados por el cliente al abrir el WebSocket
-    body = json.loads(event.get("body", "{}"))
-    rol = body.get("rol", "Estudiante")  # default por si acaso
-    user_id = body.get("user_id", "")
+    # Leer JWT desde los query params:
+    params = event.get("queryStringParameters") or {}
+    token = params.get("token")
 
+    rol = "Estudiante"
+    user_id = ""
+
+    if token:
+        try:
+            payload = jwt.decode(
+                token,
+                os.environ["JWT_SECRET"],
+                algorithms=["HS256"]
+            )
+            rol = payload.get("rol", "Estudiante")
+            user_id = payload.get("user_id", "")
+        except Exception as e:
+            print("Error en decode JWT:", e)
+
+    # Guardamos la conexión en DynamoDB
     table.put_item(Item={
         "connectionId": connection_id,
         "rol": rol,

@@ -8,6 +8,8 @@ provider:
   name: aws
   runtime: python3.13
   memorySize: 256
+  stage: dev
+  region: us-east-1
   timeout: 20
   iam:
     role: arn:aws:iam::${env:AWS_ACCOUNT_ID}:role/${env:ROLE_NAME}
@@ -17,7 +19,15 @@ provider:
     SOCKET_TABLE: ${env:SOCKET_TABLE}
     JWT_SECRET: ${env:JWT_SECRET}
     JWT_EXPIRES_MINUTES: ${env:JWT_EXPIRES_MINUTES}
-    WEBSOCKET_ENDPOINT: "wss://${self:provider.stage}-${self:service}.execute-api.${self:provider.region}.amazonaws.com/${self:provider.stage}"
+    WEBSOCKET_ENDPOINT: 
+      Fn::Join:
+        - ""
+        - - "https://"
+          - Ref: WebsocketsApi
+          - ".execute-api."
+          - Ref: AWS::Region
+          - ".amazonaws.com/"
+          - ${self:provider.stage}
 
 functions:
   CrearIncidente:
@@ -92,7 +102,7 @@ functions:
   Disconnect:
     handler: WebSocket/disconnect.handler
     events:
-      - websocket:
+      - websocket:  
           route: $disconnect
 
 resources:

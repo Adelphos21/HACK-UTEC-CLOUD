@@ -2,7 +2,7 @@ import os
 import json
 import boto3
 from datetime import datetime, timezone
-
+from WebSocket.notify import notify_user
 ddb = boto3.resource("dynamodb")
 table = ddb.Table(os.environ["INCIDENTS_TABLE"])
 
@@ -15,6 +15,7 @@ def lambda_handler(event, context):
             body = json.loads(body)
 
         incident_id = body.get("incident_id")
+        admin_user_id = body.get("admin_user_id") 
         if not incident_id:
             return {"statusCode": 400, "body": json.dumps({"message": "incident_id requerido"})}
 
@@ -24,7 +25,7 @@ def lambda_handler(event, context):
             return {"statusCode": 404, "body": json.dumps({"message": "Incidente no encontrado"})}
 
         incident = resp["Item"]
-
+        created_by = incident.get("created_by")
         # validar estado
         if incident["status"] != "pending":
             return {
@@ -57,6 +58,17 @@ def lambda_handler(event, context):
             ExpressionAttributeNames=expr_names,
             ExpressionAttributeValues=expr_values
         )
+
+        # Notificación 3: Admin actualizó el incidente → notificar al estudiante
+        if created_by and created_by != "unknown":
+            message = {
+                "tipo": "incidente_editado",
+                "incident_id": incident_id,
+                "mensaje": "Un administrador ha actualizado tu incidente",
+                "campos_actualizados": list(body.keys()),
+                "timestamp": now
+            }
+            notify_user(message, created_by)
 
         return {
             "statusCode": 200,

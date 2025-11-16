@@ -2,7 +2,7 @@ import boto3
 import os
 import json
 from datetime import datetime, timezone
-from WebSocket.notify import notify_admins
+from WebSocket.notify import notify_role, notify_user
 ROLES_AUTORIZADOS = ["Personal administrativo", "Autoridad"]
 
 ddb = boto3.resource("dynamodb")
@@ -52,6 +52,9 @@ def lambda_handler(event, context):
         if "Item" not in incident_resp:
             return {"statusCode": 404, "body": "Incidente no encontrado"}
 
+        incident = incident_resp["Item"]
+        old_status = incident.get("status")
+        created_by = incident.get("created_by")  # estudiante que reportó
         now = datetime.now(timezone.utc).isoformat()
 
         # Actualizar incidente
@@ -71,12 +74,27 @@ def lambda_handler(event, context):
                 }]
             }
         )
-        message = {
+        # Notificación 1: Cambio de estado → Personal administrativo
+        message_admins = {
             "tipo": "estado_cambiado",
             "incident_id": incident_id,
-            "nuevo_estado": new_status
+            "estado_anterior": old_status,
+            "nuevo_estado": new_status,
+            "actualizado_por": user_id,
+            "timestamp": now
         }
-        notify_admins(message)
+
+        notify_role(message_admins, "Personal administrativo")
+        # Notificación 2: Notificar al estudiante que reportó el incidente
+        if created_by and created_by != "unknown":
+            message_student = {
+                "tipo": "actualizacion_incidente",
+                "incident_id": incident_id,
+                "mensaje": f"Tu incidente ha cambiado de estado: {old_status} → {new_status}",
+                "nuevo_estado": new_status,
+                "timestamp": now
+            }
+            notify_user(message_student, created_by)
 
         return {
             "statusCode": 200,
