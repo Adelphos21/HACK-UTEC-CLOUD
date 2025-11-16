@@ -35,6 +35,8 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         const response = await incidentsApi.getByFloor(parseInt(filters.floor));
         if (response.success && response.data) {
           allIncidents = response.data.map(mapIncidentFromAPI);
+        } else {
+          setError(response.error || 'Error al cargar incidentes');
         }
       }
       // Si hay filtro por urgencia, usar endpoint específico
@@ -42,6 +44,8 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         const response = await incidentsApi.getByUrgency(filters.urgency);
         if (response.success && response.data) {
           allIncidents = response.data.map(mapIncidentFromAPI);
+        } else {
+          setError(response.error || 'Error al cargar incidentes');
         }
       }
       // Si hay filtro por estudiante, usar endpoint específico
@@ -49,15 +53,17 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         const response = await incidentsApi.getByStudent(filters.studentId);
         if (response.success && response.data) {
           allIncidents = response.data.map(mapIncidentFromAPI);
+        } else {
+          setError(response.error || 'Error al cargar incidentes');
         }
       }
-      // Sin filtros, obtener todos (necesitarás crear este endpoint o usar uno de los existentes)
+      // obtener TODOS los incidentes
       else {
-        // Por ahora, usar el de urgencia con valor vacío o implementar getAll
-        // Como no tienes getAll, podrías cargar por urgencia "low" como default
-        const response = await incidentsApi.getByUrgency('low');
+        const response = await incidentsApi.getAll();
         if (response.success && response.data) {
           allIncidents = response.data.map(mapIncidentFromAPI);
+        } else {
+          setError(response.error || 'Error al cargar incidentes');
         }
       }
       
@@ -83,7 +89,7 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       minute: '2-digit' 
     }),
     fecha: new Date(inc.created_at).toISOString().split('T')[0],
-    reportadoPor: inc.created_by
+    reportadoPor: inc.reported_by_name || inc.created_by  // ✅ USAR reported_by_name
   });
 
   const handleFilterChange = (e: ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {

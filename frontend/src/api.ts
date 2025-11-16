@@ -113,6 +113,7 @@ export interface IncidentResponse {
   urgency: string;        // "low", "medium", "high", "critical"
   status: string;         // "pending", "in_progress", "completed", "rejected"
   created_by: string;     // user_id del creador
+  reported_by_name?: string; // ✅ NUEVO: Nombre del que reportó
   created_at: string;     // ISO timestamp
   updated_at: string;     // ISO timestamp
   history?: Array<{
@@ -174,22 +175,6 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
   try {
     if (contentType?.includes('application/json')) {
       const data = await response.json();
-      
-      
-      if (typeof data === 'object' && data !== null && 'success' in data) {
-        return data as ApiResponse<T>;
-      }
-      
-      
-      if (typeof data === 'object' && data !== null && 'data' in data) {
-        return {
-          success: true,
-          data: data.data as T,
-          message: data.message
-        };
-      }
-      
-      
       return {
         success: true,
         data: data as T
@@ -198,20 +183,6 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
       const text = await response.text();
       try {
         const data = JSON.parse(text);
-        
-        // Aplicar la misma lógica que arriba
-        if (typeof data === 'object' && data !== null && 'success' in data) {
-          return data as ApiResponse<T>;
-        }
-        
-        if (typeof data === 'object' && data !== null && 'data' in data) {
-          return {
-            success: true,
-            data: data.data as T,
-            message: data.message
-          };
-        }
-        
         return {
           success: true,
           data: data as T
@@ -228,6 +199,24 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
       success: false,
       error: 'Error al procesar la respuesta'
     };
+  }
+};
+
+// Helper para decodificar JWT (sin verificar firma)
+const decodeJWT = (token: string): any => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error decodificando JWT:', error);
+    return null;
   }
 };
 
@@ -299,6 +288,23 @@ export const authApi = {
 // ==================== INCIDENTS ENDPOINTS ====================
 
 export const incidentsApi = {
+  // Obtener todos los incidentes
+  getAll: async (): Promise<ApiResponse<IncidentResponse[]>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/incidents/all`, {
+        method: 'GET',
+        headers: getAuthHeaders()
+      });
+      
+      return await handleResponse<IncidentResponse[]>(response);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Error de conexión con el servidor'
+      };
+    }
+  },
+
   // Crear nuevo incidente
   create: async (data: CreateIncidentRequest): Promise<ApiResponse<IncidentResponse>> => {
     try {
