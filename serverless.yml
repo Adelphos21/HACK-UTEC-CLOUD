@@ -19,11 +19,65 @@ provider:
     WEBSOCKET_ENDPOINT: ${env:WEBSOCKET_ENDPOINT}
 
 functions:
+  CrearIncidente:
+    handler: lambdas/Incidentes/CrearIncidente.lambda_handler
+    environment:
+      INCIDENTS_TABLE: Incidents
+    events:
+      - http:
+          path: /incidents/create
+          method: post
+          cors: true
+
+  EditarIncidente:
+    handler: lambdas/Incidentes/EditarIncidente.lambda_handler
+    environment:
+      INCIDENTS_TABLE: Incidents
+    events:
+      - http:
+          path: /incidents/edit
+          method: put
+          cors: true
+
+  ActualizarEstadoIncidente:
+    handler: lambdas/Incidentes/ActualizarEstadoIncidente.lambda_handler
+    environment:
+      INCIDENTS_TABLE: Incidents
+    events:
+      - http:
+          path: /incidents/update-status
+          method: post
+          cors: true
+
+  BuscarIncidentesPorAlumno:
+    handler: lambdas/Incidentes/BuscarIncidentesPorAlumno.lambda_handler
+    events:
+      - http:
+          path: /incidents/by-student
+          method: get
+          cors: true
+
+  BuscarIncidentesPorPiso:
+    handler: lambdas/Incidentes/BuscarIncidentesPorPiso.lambda_handler
+    events:
+      - http:
+          path: /incidents/by-floor
+          method: get
+          cors: true
+
+  BuscarIncidentesPorUrgencia:
+    handler: lambdas/Incidentes/BuscarIncidentesPorUrgencia.lambda_handler
+    events:
+      - http:
+          path: /incidents/by-urgency
+          method: get
+          cors: true
+
   CrearUsuario:
     handler: lambdas/CrearUsuario.lambda_handler
     events:
       - http:
-          path: /usuarios/register
+          path: /users/register
           method: post
           cors: true
 
@@ -31,7 +85,7 @@ functions:
     handler: lambdas/LoginUsuario.lambda_handler
     events:
       - http:
-          path: /usuarios/login
+          path: /users/login
           method: post
           cors: true
   Connect:
