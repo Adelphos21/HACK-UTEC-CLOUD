@@ -1,27 +1,25 @@
-import boto3
-import json
-import os
+import boto3, os, json
 
 def notify_admins(message):
-    dynamodb = boto3.resource("dynamodb")
-    table_name = os.environ["SOCKET_TABLE"]
-    table = dynamodb.Table(table_name)
-
-    client = boto3.client(
-        "apigatewaymanagementapi",
+    ddb = boto3.resource("dynamodb")
+    table = ddb.Table(os.environ["SOCKET_TABLE"])
+    api_gateway = boto3.client("apigatewaymanagementapi",
         endpoint_url=os.environ["WEBSOCKET_ENDPOINT"]
     )
 
-    response = table.scan(
-        FilterExpression="rol = :rol",
-        ExpressionAttributeValues={":rol": "Personal Administrativo"}
+    # Obtener todas las conexiones de admins
+    resp = table.scan(
+        FilterExpression="rol = :r",
+        ExpressionAttributeValues={":r": "Personal administrativo"}
     )
 
-    for conn in response.get("Items", []):
+    for item in resp.get("Items", []):
+        connection_id = item["connectionId"]
         try:
-            client.post_to_connection(
-                ConnectionId=conn["connectionId"],
-                Data=json.dumps(message).encode("utf-8")
+            api_gateway.post_to_connection(
+                Data=json.dumps(message),
+                ConnectionId=connection_id
             )
-        except:
-            table.delete_item(Key={"connectionId": conn["connectionId"]})
+        except Exception as e:
+            # Si falla (cliente desconectado), lo eliminamos
+            table.delete_item(Key={"connectionId": connection_id})

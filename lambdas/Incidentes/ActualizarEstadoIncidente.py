@@ -2,7 +2,7 @@ import boto3
 import os
 import json
 from datetime import datetime, timezone
-
+from WebSocket.notify import notify_admins
 ROLES_AUTORIZADOS = ["Personal administrativo", "Autoridad"]
 
 ddb = boto3.resource("dynamodb")
@@ -71,6 +71,12 @@ def lambda_handler(event, context):
                 }]
             }
         )
+        message = {
+            "tipo": "estado_cambiado",
+            "incident_id": incident_id,
+            "nuevo_estado": new_status
+        }
+        notify_admins(message)
 
         return {
             "statusCode": 200,

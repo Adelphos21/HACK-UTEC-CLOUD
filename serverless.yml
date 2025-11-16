@@ -17,7 +17,7 @@ provider:
     SOCKET_TABLE: ${env:SOCKET_TABLE}
     JWT_SECRET: ${env:JWT_SECRET}
     JWT_EXPIRES_MINUTES: ${env:JWT_EXPIRES_MINUTES}
-    WEBSOCKET_ENDPOINT: ${env:WEBSOCKET_ENDPOINT}
+    WEBSOCKET_ENDPOINT: "wss://${self:provider.stage}-${self:service}.execute-api.${self:provider.region}.amazonaws.com/${self:provider.stage}"
 
 functions:
   CrearIncidente:
@@ -84,13 +84,13 @@ functions:
           method: post
           cors: true
   Connect:
-    handler: websocket/connect.handler
+    handler: WebSocket/connect.handler
     events:
       - websocket:
           route: $connect
 
   Disconnect:
-    handler: websocket/disconnect.handler
+    handler: WebSocket/disconnect.handler
     events:
       - websocket:
           route: $disconnect

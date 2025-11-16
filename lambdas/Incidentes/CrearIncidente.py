@@ -2,7 +2,7 @@
 import os, json, uuid, time
 import boto3
 from datetime import datetime, timezone
-
+from WebSocket.notify import notify_admins
 ddb = boto3.resource('dynamodb')
 table = ddb.Table("Incidents")
 
@@ -31,5 +31,13 @@ def lambda_handler(event, context):
         "history": [{"action":"created","by": body.get('created_by','unknown'), "at": now}]
     }
     table.put_item(Item=item)
+    message = {
+    "tipo": "nuevo_incidente",
+    "incident_id": incident_id,
+    "descripcion": item["description"],
+    "urgencia": item["urgency"],
+    "estado": item["status"]
+    }
+    notify_admins(message)
     return { "statusCode": 201, "body": json.dumps({"incident_id": incident_id, "status":"pending","created_at": now}) }
 
