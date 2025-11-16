@@ -3,6 +3,7 @@ import json
 import boto3
 from decimal import Decimal
 from boto3.dynamodb.conditions import Key
+from lambdas.utils import response
 
 def clean_decimals(obj):
     if isinstance(obj, list):
@@ -25,12 +26,12 @@ def lambda_handler(event, context):
         floor = params.get("floor")
 
         if floor is None:
-            return {"statusCode": 400, "body": json.dumps({"message":"Debe enviar ?floor=numero"})}
+            return response(400, {"message": "Debe enviar ?floor=numero"})
 
         try:
             floor_val = int(floor)
         except ValueError:
-            return {"statusCode": 400, "body": json.dumps({"message":"El floor debe ser un número entero"})}
+            return response(400, {"message": "El floor debe ser un número entero"})
 
         resp = table.query(
             IndexName="IncidentsByFloor",
@@ -39,7 +40,7 @@ def lambda_handler(event, context):
 
         items = clean_decimals(resp.get("Items", []))
 
-        return {"statusCode": 200, "body": json.dumps(items)}
+        return response(200, items)
 
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"message":"error interno","error": str(e)})}
+        return response(500, {"message": "error interno", "error": str(e)})

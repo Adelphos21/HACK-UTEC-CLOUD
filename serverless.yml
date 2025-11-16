@@ -71,7 +71,7 @@ functions:
           cors: true
 
   CrearUsuario:
-    handler: lambdas/CrearUsuario.lambda_handler
+    handler: lambdas/Usuarios/CrearUsuario.lambda_handler
     events:
       - http:
           path: /users/register
@@ -79,7 +79,7 @@ functions:
           cors: true
 
   LoginUsuario:
-    handler: lambdas/LoginUsuario.lambda_handler
+    handler: lambdas/Usuarios/LoginUsuario.lambda_handler
     events:
       - http:
           path: /users/login

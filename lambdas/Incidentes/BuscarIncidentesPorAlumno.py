@@ -3,6 +3,7 @@ import json
 import boto3
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
+from lambdas.utils import response  # <- importación del conjuro anti-CORS
 
 def clean_decimals(obj):
     if isinstance(obj, list):
@@ -25,10 +26,7 @@ def lambda_handler(event, context):
         student_id = params.get("student_id")
 
         if not student_id:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"message": "Debe enviar ?student_id=valor"})
-            }
+            return response(400, {"message": "Debe enviar ?student_id=valor"})
 
         resp = table.query(
             IndexName="IncidentsByStudent",
@@ -37,10 +35,7 @@ def lambda_handler(event, context):
 
         items = clean_decimals(resp.get("Items", []))
 
-        return {"statusCode": 200, "body": json.dumps(items)}
+        return response(200, items)
 
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"message": "error interno", "error": str(e)})
-        }
+        return response(500, {"message": "error interno", "error": str(e)})

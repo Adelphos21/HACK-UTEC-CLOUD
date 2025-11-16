@@ -2,6 +2,7 @@ import os
 import json
 import boto3
 from datetime import datetime, timezone
+from lambdas.utils import response
 
 ddb = boto3.resource("dynamodb")
 table = ddb.Table(os.environ["INCIDENTS_TABLE"])
@@ -16,21 +17,21 @@ def lambda_handler(event, context):
 
         incident_id = body.get("incident_id")
         if not incident_id:
-            return {"statusCode": 400, "body": json.dumps({"message": "incident_id requerido"})}
+            return response(400, {"message": "incident_id requerido"})
 
         # obtener incidente
         resp = table.get_item(Key={"incident_id": incident_id})
         if "Item" not in resp:
-            return {"statusCode": 404, "body": json.dumps({"message": "Incidente no encontrado"})}
+            return response(404, {"message": "Incidente no encontrado"})
 
         incident = resp["Item"]
 
         # validar estado
         if incident["status"] != "pending":
-            return {
-                "statusCode": 403,
-                "body": json.dumps({"message": "Solo se puede editar si el incidente está en estado 'pending'"})
-            }
+            return response(
+                403,
+                {"message": "Solo se puede editar si el incidente está en estado 'pending'"}
+            )
 
         # construir expresiones dinámicas
         update_expr = []
@@ -44,9 +45,8 @@ def lambda_handler(event, context):
                 expr_names[f"#f_{field}"] = field
 
         if not update_expr:
-            return {"statusCode": 400, "body": json.dumps({"message": "No hay campos válidos para actualizar"})}
+            return response(400, {"message": "No hay campos válidos para actualizar"})
 
-        # actualizar updated_at
         now = datetime.now(timezone.utc).isoformat()
         update_expr.append("updated_at = :now")
         expr_values[":now"] = now
@@ -58,14 +58,14 @@ def lambda_handler(event, context):
             ExpressionAttributeValues=expr_values
         )
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
+        return response(
+            200,
+            {
                 "message": "Incidente actualizado",
                 "incident_id": incident_id,
                 "updated_at": now
-            })
-        }
+            }
+        )
 
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return response(500, {"error": str(e)})
