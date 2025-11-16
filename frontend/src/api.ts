@@ -174,6 +174,22 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
   try {
     if (contentType?.includes('application/json')) {
       const data = await response.json();
+      
+      
+      if (typeof data === 'object' && data !== null && 'success' in data) {
+        return data as ApiResponse<T>;
+      }
+      
+      
+      if (typeof data === 'object' && data !== null && 'data' in data) {
+        return {
+          success: true,
+          data: data.data as T,
+          message: data.message
+        };
+      }
+      
+      
       return {
         success: true,
         data: data as T
@@ -182,6 +198,20 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
       const text = await response.text();
       try {
         const data = JSON.parse(text);
+        
+        // Aplicar la misma lógica que arriba
+        if (typeof data === 'object' && data !== null && 'success' in data) {
+          return data as ApiResponse<T>;
+        }
+        
+        if (typeof data === 'object' && data !== null && 'data' in data) {
+          return {
+            success: true,
+            data: data.data as T,
+            message: data.message
+          };
+        }
+        
         return {
           success: true,
           data: data as T

@@ -27,67 +27,55 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onShowRegister }) => {
         
         console.log('Response data:', responseData);
         
-        // Intentar extraer el access_token de diferentes estructuras posibles
-        let accessToken = responseData.access_token || 
-                         responseData.token || 
-                         responseData.accessToken;
+        // El token viene como "token" del backend
+        const accessToken = responseData.token || responseData.access_token;
         
-        // Intentar extraer user_id de diferentes ubicaciones
-        let userId = responseData.user_id || 
-                    responseData.user?.user_id ||
-                    responseData.data?.user_id;
-        
-        // Intentar extraer el objeto user o construirlo
-        let userData = responseData.user || 
-                      responseData.usuario || 
-                      responseData.data;
-        
-        console.log('Token extraído:', accessToken);
-        console.log('User ID extraído:', userId);
-        console.log('User data extraído:', userData);
-        
-        // Verificar que tengamos al menos el token
         if (!accessToken) {
-          console.error('No se encontró token en la respuesta:', responseData);
-          setError('Respuesta de servidor inválida: falta token');
+          console.error('No se encontró token en la respuesta');
+          setError('Error: No se recibió token de autenticación');
           setLoading(false);
           return;
         }
-        
-        // Verificar que tengamos user_id
-        if (!userId) {
-          console.error('No se encontró user_id en la respuesta:', responseData);
-          setError('Respuesta de servidor inválida: falta user_id');
-          setLoading(false);
-          return;
+
+        // Decodificar el JWT manualmente para extraer los datos
+        try {
+          const base64Url = accessToken.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split('')
+              .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+              .join('')
+          );
+          const decoded = JSON.parse(jsonPayload);
+          
+          console.log('🔓 JWT decodificado:', decoded);
+          
+          // Construir objeto user con datos del JWT
+          const userData = {
+            user_id: decoded.user_id,
+            nombre: decoded.nombre || decoded.correo.split('@')[0],
+            correo: decoded.correo,
+            email: decoded.correo,
+            rol: decoded.rol,
+            apellidos: '',
+            dni: ''
+          };
+          
+          console.log('📦 User data construido:', userData);
+          
+          // Guardar en localStorage antes de llamar a onLogin
+          localStorage.setItem('access_token', accessToken);
+          localStorage.setItem('user_id', decoded.user_id);
+          localStorage.setItem('user_data', JSON.stringify(userData));
+          
+          console.log('💾 Datos guardados en localStorage');
+          
+          onLogin(userData, accessToken);
+        } catch (err) {
+          console.error('❌ Error decodificando JWT:', err);
+          setError('Error al procesar la respuesta del servidor');
         }
-        
-        // Construir el objeto user con toda la información necesaria
-        const userFormatted = {
-          user_id: userId,
-          nombre: userData?.nombre ?? userData?.nombres ?? email.split('@')[0],
-          apellidos: userData?.apellidos ?? "",
-          email: userData?.email ?? userData?.correo ?? email,
-          rol: userData?.rol ?? "Estudiante",
-          dni: userData?.dni ?? '',
-};
-        console.log("ROL recibido desde backend:", userData?.rol, responseData.rol);
-        console.log('User formatted final:', userFormatted);
-        
-        // Guardar tokens y user_id en localStorage
-        localStorage.setItem('access_token', accessToken);
-        localStorage.setItem('user_id', userId);
-        localStorage.setItem('user_data', JSON.stringify(userFormatted));
-        
-        if (responseData.refresh_token || responseData.refreshToken) {
-          localStorage.setItem('refresh_token', 
-            responseData.refresh_token || responseData.refreshToken);
-        }
-        
-        console.log('Datos guardados en localStorage');
-        console.log('user_id:', localStorage.getItem('user_id'));
-        
-        onLogin(userFormatted, accessToken);
       } else {
         setError(response.error || 'Credenciales inválidas');
       }

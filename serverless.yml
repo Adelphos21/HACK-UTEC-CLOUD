@@ -127,7 +127,7 @@ resources:
         AttributeDefinitions:
           - AttributeName: incident_id
             AttributeType: S
-          - AttributeName: student_id
+          - AttributeName: created_by  
             AttributeType: S
           - AttributeName: floor
             AttributeType: N
@@ -145,7 +145,7 @@ resources:
           # GSI por alumno
           - IndexName: IncidentsByStudent
             KeySchema:
-              - AttributeName: student_id
+              - AttributeName: created_by  
                 KeyType: HASH
             Projection:
               ProjectionType: ALL

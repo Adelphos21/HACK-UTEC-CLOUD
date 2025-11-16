@@ -45,10 +45,10 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         const formattedIncidents: Incident[] = response.data.map(inc => ({
           id: inc.incident_id,
           tipo: INCIDENT_TYPE_LABELS[inc.type] || inc.type,
-          urgencia: (URGENCY_LABELS[inc.urgency] || inc.urgency) as 'Baja' | 'Media' | 'Alta' | 'Crítica',
+          urgencia: URGENCY_LABELS[inc.urgency] || inc.urgency,
           descripcion: inc.description,
           ubicacion: `Piso ${inc.floor} - ${inc.ambient}`,
-          estado: (STATUS_LABELS[inc.status] || inc.status) as 'Pendiente' | 'En Atención' | 'Resuelto',
+          estado: STATUS_LABELS[inc.status] || inc.status,
           timestamp: new Date(inc.created_at).toLocaleTimeString('es-PE', { 
             hour: '2-digit', 
             minute: '2-digit' 
@@ -82,10 +82,10 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         const newIncident: Incident = {
           id: response.data.incident_id,
           tipo: INCIDENT_TYPE_LABELS[response.data.type] || response.data.type,
-          urgencia: (URGENCY_LABELS[response.data.urgency] || response.data.urgency) as 'Baja' | 'Media' | 'Alta' | 'Crítica',
+          urgencia: URGENCY_LABELS[response.data.urgency] || response.data.urgency,
           descripcion: response.data.description,
           ubicacion: `Piso ${response.data.floor} - ${response.data.ambient}`,
-          estado: (STATUS_LABELS[response.data.status] || response.data.status) as 'Pendiente' | 'En Atención' | 'Resuelto',
+          estado: STATUS_LABELS[response.data.status] || response.data.status,
           timestamp: new Date(response.data.created_at).toLocaleTimeString('es-PE', { 
             hour: '2-digit', 
             minute: '2-digit' 
@@ -297,7 +297,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 <label className="block text-gray-700 font-medium mb-2">Tipo de Incidente</label>
                 <select
                   value={newReport.type}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, type: e.target.value as typeof newReport.type })}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, type: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   disabled={submitting}
                 >
@@ -353,7 +353,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 <label className="block text-gray-700 font-medium mb-2">Urgencia</label>
                 <select
                   value={newReport.urgency}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, urgency: e.target.value as typeof newReport.urgency })}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, urgency: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   disabled={submitting}
                 >

@@ -30,7 +30,7 @@ def lambda_handler(event, context):
 
         resp = table.query(
             IndexName="IncidentsByStudent",
-            KeyConditionExpression=Key("student_id").eq(student_id)
+            KeyConditionExpression=Key("created_by").eq(student_id)
         )
 
         items = clean_decimals(resp.get("Items", []))
