@@ -1,0 +1,27 @@
+org: ${env:ORG_NAME}
+service: ${env:SERVICE_NAME}
+
+plugins:
+  - serverless-dotenv-plugin
+
+provider:
+  name: aws
+  runtime: python3.13
+  memorySize: 256
+  timeout: 20
+  iam:
+    role: arn:aws:iam::${env:AWS_ACCOUNT_ID}:role/${env:ROLE_NAME}
+
+resources:
+  Resources:
+    IncidentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Incidents
+        AttributeDefinitions:
+          - AttributeName: incident_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: incident_id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
