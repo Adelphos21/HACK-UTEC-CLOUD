@@ -1,9 +1,10 @@
 // Tipos de la aplicación
 
 export interface User {
+  user_id: string | null;
   nombre: string;
   email: string;
-  rol: 'Estudiante' | 'Administrativo' | 'Autoridad';
+  rol: 'Estudiante' | 'Personal administrativo' | 'Autoridad';
 }
 
 export interface RegisterData {
@@ -12,7 +13,7 @@ export interface RegisterData {
   dni: string;
   correo: string;
   password: string;
-  rol: 'Estudiante' | 'Administrativo' | 'Autoridad';
+  rol: 'Estudiante' | 'Personal administrativo' | 'Autoridad';
 }
 
 export interface Incident {

@@ -57,9 +57,19 @@ def lambda_handler(event, context):
         # Respuesta
         return response(200, {
             "message": "Login exitoso",
-            "token": token,
-            "expira_en": "1 hora"
+            "access_token": token,
+            "token_type": "Bearer",
+            "expires_in": "expira en 1 hora",
+            "user": {
+                "user_id": usuario["user_id"],
+                "correo": usuario["correo"],
+                "nombre": usuario.get("nombre", usuario.get("nombres", "")),
+                "apellidos": usuario.get("apellidos", ""),
+                "dni": usuario.get("dni", ""),
+                "rol": usuario["rol"]
+            }
         })
+
 
     except Exception as e:
         return response(500, {"error": str(e)})

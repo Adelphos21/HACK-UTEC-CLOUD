@@ -1,7 +1,7 @@
 import React, { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
 import { Bell, LogOut, Plus, X, MapPin, Clock, Loader2 } from 'lucide-react';
-import type { DashboardProps, Incident, NewReport } from '../types';
-import { incidentsApi } from '../api';
+import type { DashboardProps, Incident } from '../types';
+import { incidentsApi, INCIDENT_TYPES, URGENCY_LEVELS, INCIDENT_TYPE_LABELS, URGENCY_LABELS, STATUS_LABELS } from '../api';
 
 const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -10,17 +10,14 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   
-  const [newReport, setNewReport] = useState<NewReport>({
-    tipo: 'Seguridad',
-    ubicacion: '',
-    descripcion: '',
-    urgencia: 'Media'
+  const [newReport, setNewReport] = useState({
+    type: INCIDENT_TYPES.SECURITY,
+    floor: 1,
+    ambient: '',
+    description: '',
+    urgency: URGENCY_LEVELS.MEDIUM,
+    created_by: user.user_id || ''
   });
-
-  // Obtener token del localStorage
-  const getToken = (): string => {
-    return localStorage.getItem('access_token') || '';
-  };
 
   // Cargar incidentes al montar el componente
   useEffect(() => {
@@ -32,24 +29,32 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     setError('');
     
     try {
-      const token = getToken();
-      const response = await incidentsApi.getAll(token);
+      // Obtener user_id del usuario actual
+      const userId = user.user_id || localStorage.getItem('user_id');
+      
+      if (!userId) {
+        setError('No se pudo obtener el ID del usuario');
+        return;
+      }
+
+      // Usar el endpoint by-student para obtener solo los incidentes del estudiante
+      const response = await incidentsApi.getByStudent(userId);
       
       if (response.success && response.data) {
         // Convertir formato de API al formato del componente
         const formattedIncidents: Incident[] = response.data.map(inc => ({
           id: inc.incident_id,
-          tipo: inc.tipo,
-          urgencia: inc.urgencia,
-          descripcion: inc.descripcion,
-          ubicacion: inc.ubicacion,
-          estado: inc.estado,
+          tipo: INCIDENT_TYPE_LABELS[inc.type] || inc.type,
+          urgencia: (URGENCY_LABELS[inc.urgency] || inc.urgency) as 'Baja' | 'Media' | 'Alta' | 'Crítica',
+          descripcion: inc.description,
+          ubicacion: `Piso ${inc.floor} - ${inc.ambient}`,
+          estado: (STATUS_LABELS[inc.status] || inc.status) as 'Pendiente' | 'En Atención' | 'Resuelto',
           timestamp: new Date(inc.created_at).toLocaleTimeString('es-PE', { 
             hour: '2-digit', 
             minute: '2-digit' 
           }),
           fecha: new Date(inc.created_at).toISOString().split('T')[0],
-          reportadoPor: inc.reportado_por
+          reportadoPor: inc.created_by
         }));
         
         setIncidents(formattedIncidents);
@@ -70,33 +75,36 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     setError('');
     
     try {
-      const token = getToken();
-      const response = await incidentsApi.create(token, newReport);
+      const response = await incidentsApi.create(newReport);
       
       if (response.success && response.data) {
         // Agregar el nuevo incidente a la lista
         const newIncident: Incident = {
           id: response.data.incident_id,
-          tipo: response.data.tipo,
-          urgencia: response.data.urgencia,
-          descripcion: response.data.descripcion,
-          ubicacion: response.data.ubicacion,
-          estado: response.data.estado,
+          tipo: INCIDENT_TYPE_LABELS[response.data.type] || response.data.type,
+          urgencia: (URGENCY_LABELS[response.data.urgency] || response.data.urgency) as 'Baja' | 'Media' | 'Alta' | 'Crítica',
+          descripcion: response.data.description,
+          ubicacion: `Piso ${response.data.floor} - ${response.data.ambient}`,
+          estado: (STATUS_LABELS[response.data.status] || response.data.status) as 'Pendiente' | 'En Atención' | 'Resuelto',
           timestamp: new Date(response.data.created_at).toLocaleTimeString('es-PE', { 
             hour: '2-digit', 
             minute: '2-digit' 
           }),
           fecha: new Date(response.data.created_at).toISOString().split('T')[0],
-          reportadoPor: response.data.reportado_por
+          reportadoPor: response.data.created_by
         };
         
         setIncidents([newIncident, ...incidents]);
         setShowReportForm(false);
+        
+        // Reset form
         setNewReport({
-          tipo: 'Seguridad',
-          ubicacion: '',
-          descripcion: '',
-          urgencia: 'Media'
+          type: INCIDENT_TYPES.SECURITY,
+          floor: 1,
+          ambient: '',
+          description: '',
+          urgency: URGENCY_LEVELS.MEDIUM,
+          created_by: user.user_id || ''
         });
       } else {
         setError(response.error || 'Error al crear el reporte');
@@ -123,7 +131,8 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const colors: Record<string, string> = {
       'Pendiente': 'bg-gray-100 text-gray-800',
       'En Atención': 'bg-cyan-100 text-cyan-800',
-      'Resuelto': 'bg-green-100 text-green-800'
+      'Resuelto': 'bg-green-100 text-green-800',
+      'Rechazado': 'bg-red-100 text-red-800'
     };
     return colors[estado] || colors['Pendiente'];
   };
@@ -142,7 +151,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <span className="text-white text-xl font-bold">SOS</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Reportes</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Mis Reportes</h1>
               <p className="text-sm text-gray-600">Bienvenido, {user.nombre} ({user.rol})</p>
             </div>
           </div>
@@ -177,7 +186,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Incidentes Recientes</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Mis Incidentes</h2>
               <button
                 onClick={() => setShowReportForm(true)}
                 className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
@@ -194,7 +203,13 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               </div>
             ) : incidents.length === 0 ? (
               <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                <p className="text-gray-500">No hay incidentes reportados</p>
+                <p className="text-gray-500 mb-4">No has reportado ningún incidente</p>
+                <button
+                  onClick={() => setShowReportForm(true)}
+                  className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                >
+                  Crear tu primer reporte
+                </button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -233,7 +248,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <h3 className="text-xl font-bold text-gray-900 mb-6">Mi Actividad</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-700">Reportes Total</span>
+                  <span className="text-gray-700">Total</span>
                   <span className="text-2xl font-bold text-gray-900">{myIncidents}</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -256,7 +271,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
       {showReportForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Reportar Incidente</h2>
@@ -281,37 +296,51 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <div>
                 <label className="block text-gray-700 font-medium mb-2">Tipo de Incidente</label>
                 <select
-                  value={newReport.tipo}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, tipo: e.target.value })}
+                  value={newReport.type}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, type: e.target.value as typeof newReport.type })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   disabled={submitting}
                 >
-                  <option value="Seguridad">Seguridad</option>
-                  <option value="Salud">Salud</option>
-                  <option value="Propiedad">Propiedad</option>
-                  <option value="Infraestructura">Infraestructura</option>
-                  <option value="Otro">Otro</option>
+                  {Object.entries(INCIDENT_TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">Ubicación</label>
-                <input
-                  type="text"
-                  value={newReport.ubicacion}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNewReport({ ...newReport, ubicacion: e.target.value })}
-                  placeholder="Ej: Edificio A, Aula 301"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  required
-                  disabled={submitting}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">Piso</label>
+                  <select
+                    value={newReport.floor}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, floor: parseInt(e.target.value) })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    disabled={submitting}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(floor => (
+                      <option key={floor} value={floor}>Piso {floor}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">Ambiente</label>
+                  <input
+                    type="text"
+                    value={newReport.ambient}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNewReport({ ...newReport, ambient: e.target.value })}
+                    placeholder="Ej: S1101"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    required
+                    disabled={submitting}
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="block text-gray-700 font-medium mb-2">Descripción</label>
                 <textarea
-                  value={newReport.descripcion}
-                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNewReport({ ...newReport, descripcion: e.target.value })}
+                  value={newReport.description}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNewReport({ ...newReport, description: e.target.value })}
                   placeholder="Describe el incidente..."
                   rows={4}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
@@ -323,15 +352,14 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <div>
                 <label className="block text-gray-700 font-medium mb-2">Urgencia</label>
                 <select
-                  value={newReport.urgencia}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, urgencia: e.target.value as NewReport['urgencia'] })}
+                  value={newReport.urgency}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, urgency: e.target.value as typeof newReport.urgency })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   disabled={submitting}
                 >
-                  <option value="Baja">Baja</option>
-                  <option value="Media">Media</option>
-                  <option value="Alta">Alta</option>
-                  <option value="Crítica">Crítica</option>
+                  {Object.entries(URGENCY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
                 </select>
               </div>
 

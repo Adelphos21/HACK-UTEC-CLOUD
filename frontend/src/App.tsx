@@ -41,7 +41,7 @@ function App() {
   }
 
   // Si es autoridad o administrativo, mostrar dashboard de autoridad
-  if (user.rol === 'Autoridad' || user.rol === 'Administrativo') {
+  if (user.rol === 'Autoridad' || user.rol === 'Personal administrativo') {
     return <AuthorityDashboard user={user} onLogout={handleLogout} />;
   }
 

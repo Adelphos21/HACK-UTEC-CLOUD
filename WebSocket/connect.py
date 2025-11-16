@@ -1,38 +1,68 @@
 import boto3
 import os
-import jwt
+import json
 
-dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(os.environ["SOCKET_TABLE"])
+ddb = boto3.resource("dynamodb")
+table = ddb.Table(os.environ["SOCKET_TABLE"])
 
 def handler(event, context):
-
-    connection_id = event["requestContext"]["connectionId"]
-
-    # Leer JWT desde los query params:
-    params = event.get("queryStringParameters") or {}
-    token = params.get("token")
-
-    rol = "Estudiante"
-    user_id = ""
-
-    if token:
-        try:
-            payload = jwt.decode(
-                token,
-                os.environ["JWT_SECRET"],
-                algorithms=["HS256"]
-            )
-            rol = payload.get("rol", "Estudiante")
-            user_id = payload.get("user_id", "")
-        except Exception as e:
-            print("Error en decode JWT:", e)
-
-    # Guardamos la conexión en DynamoDB
-    table.put_item(Item={
-        "connectionId": connection_id,
-        "rol": rol,
-        "user_id": user_id
-    })
-
-    return {"statusCode": 200}
+    """
+    Maneja las conexiones WebSocket y guarda la info en DynamoDB
+    """
+    try:
+        connection_id = event["requestContext"]["connectionId"]
+        
+        # Obtener query string parameters
+        query_params = event.get("queryStringParameters") or {}
+        
+        user_id = query_params.get("user_id")
+        rol = query_params.get("rol")
+        token = query_params.get("token")  # opcional
+        
+        print(f"Nueva conexión: {connection_id}")
+        print(f"Query params: {query_params}")
+        print(f"user_id: {user_id}, rol: {rol}")
+        
+        # Validar que user_id y rol existan
+        if not user_id:
+            print("❌ Error: user_id es requerido")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"message": "user_id es requerido"})
+            }
+        
+        if not rol:
+            print("❌ Error: rol es requerido")
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"message": "rol es requerido"})
+            }
+        
+        # Guardar conexión en DynamoDB
+        item = {
+            "connectionId": connection_id,
+            "user_id": user_id,
+            "rol": rol,
+            "connected_at": event["requestContext"]["requestTimeEpoch"]
+        }
+        
+        # Si hay token, validarlo (opcional)
+        if token:
+            item["token"] = token
+            # Aquí podrías validar el JWT si quieres
+        
+        table.put_item(Item=item)
+        
+        print(f"✅ Conexión guardada: {item}")
+        
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"message": "Conectado exitosamente"})
+        }
+        
+    except Exception as e:
+        print(f"❌ Error en connect: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }

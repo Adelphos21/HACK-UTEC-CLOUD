@@ -2,12 +2,10 @@ import os
 import json
 import boto3
 from datetime import datetime, timezone
-<<<<<<< HEAD
 from WebSocket.notify import notify_user
-=======
+
 from lambdas.utils import response
 
->>>>>>> a1421e33b0247b886e0fef7da7ec55d3ef1b73e1
 ddb = boto3.resource("dynamodb")
 table = ddb.Table(os.environ["INCIDENTS_TABLE"])
 
@@ -63,7 +61,7 @@ def lambda_handler(event, context):
             ExpressionAttributeValues=expr_values
         )
 
-<<<<<<< HEAD
+
         # Notificación 3: Admin actualizó el incidente → notificar al estudiante
         if created_by and created_by != "unknown":
             message = {
@@ -75,14 +73,10 @@ def lambda_handler(event, context):
             }
             notify_user(message, created_by)
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-=======
+        
         return response(
             200,
             {
->>>>>>> a1421e33b0247b886e0fef7da7ec55d3ef1b73e1
                 "message": "Incidente actualizado",
                 "incident_id": incident_id,
                 "updated_at": now

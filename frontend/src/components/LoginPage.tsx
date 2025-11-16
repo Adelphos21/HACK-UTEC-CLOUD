@@ -18,55 +18,77 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onShowRegister }) => {
     setLoading(true);
     
     try {
-      // Llamada real a la API
       const response = await authApi.login({ email, password });
       
-      console.log('Login response:', response); // Debug
+      console.log('Login response completa:', response);
       
       if (response.success && response.data) {
-        // Login exitoso
         const responseData = response.data as any;
         
-        // Manejar diferentes estructuras de respuesta
-        let accessToken = responseData.access_token || responseData.token || responseData.accessToken;
-        let refreshToken = responseData.refresh_token || responseData.refreshToken;
-        let userData = responseData.user || responseData.usuario || responseData.data;
+        console.log('Response data:', responseData);
         
-        // Si no hay estructura anidada, intentar construir el usuario desde la respuesta directa
-        if (!userData) {
-          userData = {
-            nombre: responseData.nombre || responseData.nombres || email.split('@')[0],
-            email: responseData.email || responseData.correo || email,
-            rol: responseData.rol || 'Estudiante'
-          };
-        }
+        // Intentar extraer el access_token de diferentes estructuras posibles
+        let accessToken = responseData.access_token || 
+                         responseData.token || 
+                         responseData.accessToken;
+        
+        // Intentar extraer user_id de diferentes ubicaciones
+        let userId = responseData.user_id || 
+                    responseData.user?.user_id ||
+                    responseData.data?.user_id;
+        
+        // Intentar extraer el objeto user o construirlo
+        let userData = responseData.user || 
+                      responseData.usuario || 
+                      responseData.data;
+        
+        console.log('Token extraído:', accessToken);
+        console.log('User ID extraído:', userId);
+        console.log('User data extraído:', userData);
         
         // Verificar que tengamos al menos el token
         if (!accessToken) {
           console.error('No se encontró token en la respuesta:', responseData);
-          setError('Respuesta de servidor inválida');
+          setError('Respuesta de servidor inválida: falta token');
           setLoading(false);
           return;
         }
         
-        // Guardar tokens en localStorage
-        localStorage.setItem('access_token', accessToken);
-        if (refreshToken) {
-          localStorage.setItem('refresh_token', refreshToken);
+        // Verificar que tengamos user_id
+        if (!userId) {
+          console.error('No se encontró user_id en la respuesta:', responseData);
+          setError('Respuesta de servidor inválida: falta user_id');
+          setLoading(false);
+          return;
         }
         
-        // Convertir la respuesta al formato que espera el componente
+        // Construir el objeto user con toda la información necesaria
         const userFormatted = {
-          nombre: userData.nombre || userData.nombres || email.split('@')[0],
-          email: userData.email || userData.correo || email,
-          rol: userData.rol || 'Estudiante'
-        };
+          user_id: userId,
+          nombre: userData?.nombre ?? userData?.nombres ?? email.split('@')[0],
+          apellidos: userData?.apellidos ?? "",
+          email: userData?.email ?? userData?.correo ?? email,
+          rol: userData?.rol ?? "Estudiante",
+          dni: userData?.dni ?? '',
+};
+        console.log("ROL recibido desde backend:", userData?.rol, responseData.rol);
+        console.log('User formatted final:', userFormatted);
         
-        console.log('User formatted:', userFormatted); // Debug
+        // Guardar tokens y user_id en localStorage
+        localStorage.setItem('access_token', accessToken);
+        localStorage.setItem('user_id', userId);
+        localStorage.setItem('user_data', JSON.stringify(userFormatted));
+        
+        if (responseData.refresh_token || responseData.refreshToken) {
+          localStorage.setItem('refresh_token', 
+            responseData.refresh_token || responseData.refreshToken);
+        }
+        
+        console.log('Datos guardados en localStorage');
+        console.log('user_id:', localStorage.getItem('user_id'));
         
         onLogin(userFormatted, accessToken);
       } else {
-        // Error en el login
         setError(response.error || 'Credenciales inválidas');
       }
     } catch (err) {

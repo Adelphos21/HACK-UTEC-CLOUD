@@ -1,7 +1,7 @@
 import React, { useState, useEffect, type ChangeEvent } from 'react';
 import { Bell, LogOut, X, MapPin, Clock, Filter, Loader2, RefreshCw } from 'lucide-react';
 import type { DashboardProps, Incident } from '../types';
-import { incidentsApi } from '../api';
+import { incidentsApi, INCIDENT_STATUS, URGENCY_LEVELS, STATUS_LABELS, URGENCY_LABELS } from '../api';
 
 const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -11,18 +11,12 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [updating, setUpdating] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   
-  // Estados de filtros
+  // Estados de filtros - CORREGIDOS para usar los valores reales del backend
   const [filters, setFilters] = useState({
-    estado: '',
-    alumno: '',
-    piso: '',
-    urgencia: ''
+    floor: '',
+    urgency: '',
+    studentId: ''
   });
-
-  // Obtener token del localStorage
-  const getToken = (): string => {
-    return localStorage.getItem('access_token') || '';
-  };
 
   // Cargar incidentes al montar el componente
   useEffect(() => {
@@ -34,39 +28,40 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     setError('');
     
     try {
-      const token = getToken();
-      
-      // Preparar filtros para la API (solo los que tienen valor)
-      const apiFilters: Record<string, string> = {};
-      if (filters.estado) apiFilters.estado = filters.estado;
-      if (filters.urgencia) apiFilters.urgencia = filters.urgencia;
-      
-      const response = await incidentsApi.getAll(token, apiFilters);
-      
-      if (response.success && response.data) {
-        // Convertir formato de API al formato del componente
-        let formattedIncidents: Incident[] = response.data.map(inc => ({
-          id: inc.incident_id,
-          tipo: inc.tipo,
-          urgencia: inc.urgencia,
-          descripcion: inc.descripcion,
-          ubicacion: inc.ubicacion,
-          estado: inc.estado,
-          timestamp: new Date(inc.created_at).toLocaleTimeString('es-PE', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          fecha: new Date(inc.created_at).toISOString().split('T')[0],
-          reportadoPor: inc.reportado_por
-        }));
-        
-        // Aplicar filtros del lado del cliente (alumno y piso)
-        formattedIncidents = applyClientSideFilters(formattedIncidents);
-        
-        setIncidents(formattedIncidents);
-      } else {
-        setError(response.error || 'Error al cargar incidentes');
+      let allIncidents: Incident[] = [];
+
+      // Si hay filtro por piso, usar endpoint específico
+      if (filters.floor) {
+        const response = await incidentsApi.getByFloor(parseInt(filters.floor));
+        if (response.success && response.data) {
+          allIncidents = response.data.map(mapIncidentFromAPI);
+        }
       }
+      // Si hay filtro por urgencia, usar endpoint específico
+      else if (filters.urgency) {
+        const response = await incidentsApi.getByUrgency(filters.urgency);
+        if (response.success && response.data) {
+          allIncidents = response.data.map(mapIncidentFromAPI);
+        }
+      }
+      // Si hay filtro por estudiante, usar endpoint específico
+      else if (filters.studentId) {
+        const response = await incidentsApi.getByStudent(filters.studentId);
+        if (response.success && response.data) {
+          allIncidents = response.data.map(mapIncidentFromAPI);
+        }
+      }
+      // Sin filtros, obtener todos (necesitarás crear este endpoint o usar uno de los existentes)
+      else {
+        // Por ahora, usar el de urgencia con valor vacío o implementar getAll
+        // Como no tienes getAll, podrías cargar por urgencia "low" como default
+        const response = await incidentsApi.getByUrgency('low');
+        if (response.success && response.data) {
+          allIncidents = response.data.map(mapIncidentFromAPI);
+        }
+      }
+      
+      setIncidents(allIncidents);
     } catch (err) {
       console.error('Error cargando incidentes:', err);
       setError('Error de conexión');
@@ -75,25 +70,21 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     }
   };
 
-  // Aplicar filtros del lado del cliente
-  const applyClientSideFilters = (incidentsList: Incident[]): Incident[] => {
-    return incidentsList.filter(incident => {
-      // Filtro por alumno (reportadoPor)
-      if (filters.alumno && !incident.reportadoPor?.toLowerCase().includes(filters.alumno.toLowerCase())) {
-        return false;
-      }
-
-      // Filtro por piso (busca en ubicación)
-      if (filters.piso) {
-        const pisoMatch = incident.ubicacion.toLowerCase().includes(`piso ${filters.piso}`) ||
-                         incident.ubicacion.toLowerCase().includes(`${filters.piso}°`) ||
-                         incident.ubicacion.toLowerCase().includes(`p${filters.piso}`);
-        if (!pisoMatch) return false;
-      }
-
-      return true;
-    });
-  };
+  // Mapear incidente de API al formato del componente
+  const mapIncidentFromAPI = (inc: any): Incident => ({
+    id: inc.incident_id,
+    tipo: inc.type,
+    urgencia: URGENCY_LABELS[inc.urgency] || inc.urgency,
+    descripcion: inc.description,
+    ubicacion: `Piso ${inc.floor} - ${inc.ambient}`,
+    estado: STATUS_LABELS[inc.status] || inc.status,
+    timestamp: new Date(inc.created_at).toLocaleTimeString('es-PE', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    }),
+    fecha: new Date(inc.created_at).toISOString().split('T')[0],
+    reportadoPor: inc.created_by
+  });
 
   const handleFilterChange = (e: ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -102,36 +93,36 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   const clearFilters = () => {
     setFilters({
-      estado: '',
-      alumno: '',
-      piso: '',
-      urgencia: ''
+      floor: '',
+      urgency: '',
+      studentId: ''
     });
   };
 
-  // Recargar incidentes cuando cambien los filtros de API (estado, urgencia)
+  // Recargar incidentes cuando cambien los filtros
   useEffect(() => {
     if (!loading) {
       loadIncidents();
     }
-  }, [filters.estado, filters.urgencia]);
+  }, [filters.floor, filters.urgency, filters.studentId]);
 
-  // Aplicar filtros del lado del cliente cuando cambien (alumno, piso)
-  const filteredIncidents = applyClientSideFilters(incidents);
-
-  const updateIncidentStatus = async (id: string, newStatus: Incident['estado']) => {
+  const updateIncidentStatus = async (id: string, newStatus: string) => {
     setUpdating(true);
     setError('');
     
     try {
-      const token = getToken();
-      const response = await incidentsApi.updateStatus(token, id, { estado: newStatus });
+      // Obtener user_id del usuario actual
+      const userId = user.user_id || localStorage.getItem('user_id') || 'admin';
+      
+      const response = await incidentsApi.updateStatus({
+        incident_id: id,
+        new_status: newStatus,
+        user_id: userId
+      });
       
       if (response.success) {
-        // Actualizar el incidente en la lista local
-        setIncidents(incidents.map(inc => 
-          inc.id === id ? { ...inc, estado: newStatus } : inc
-        ));
+        // Recargar incidentes para obtener datos actualizados
+        await loadIncidents();
         setSelectedIncident(null);
       } else {
         setError(response.error || 'Error al actualizar el estado');
@@ -158,7 +149,8 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     const colors: Record<string, string> = {
       'Pendiente': 'bg-gray-100 text-gray-800',
       'En Atención': 'bg-cyan-100 text-cyan-800',
-      'Resuelto': 'bg-green-100 text-green-800'
+      'Resuelto': 'bg-green-100 text-green-800',
+      'Rechazado': 'bg-red-100 text-red-800'
     };
     return colors[estado] || colors['Pendiente'];
   };
@@ -271,55 +263,22 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Estado
-                </label>
-                <select
-                  name="estado"
-                  value={filters.estado}
-                  onChange={handleFilterChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  disabled={loading}
-                >
-                  <option value="">Todos</option>
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="En Atención">En Atención</option>
-                  <option value="Resuelto">Resuelto</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Alumno/Reportado por
-                </label>
-                <input
-                  type="text"
-                  name="alumno"
-                  value={filters.alumno}
-                  onChange={handleFilterChange}
-                  placeholder="Nombre del alumno"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-              </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Piso
                 </label>
                 <select
-                  name="piso"
-                  value={filters.piso}
+                  name="floor"
+                  value={filters.floor}
                   onChange={handleFilterChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  disabled={loading}
                 >
                   <option value="">Todos</option>
-                  <option value="1">Piso 1</option>
-                  <option value="2">Piso 2</option>
-                  <option value="3">Piso 3</option>
-                  <option value="4">Piso 4</option>
-                  <option value="5">Piso 5</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(floor => (
+                    <option key={floor} value={floor}>Piso {floor}</option>
+                  ))}
                 </select>
               </div>
 
@@ -328,18 +287,32 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                   Urgencia
                 </label>
                 <select
-                  name="urgencia"
-                  value={filters.urgencia}
+                  name="urgency"
+                  value={filters.urgency}
                   onChange={handleFilterChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   disabled={loading}
                 >
                   <option value="">Todas</option>
-                  <option value="Baja">Baja</option>
-                  <option value="Media">Media</option>
-                  <option value="Alta">Alta</option>
-                  <option value="Crítica">Crítica</option>
+                  <option value={URGENCY_LEVELS.LOW}>Baja</option>
+                  <option value={URGENCY_LEVELS.MEDIUM}>Media</option>
+                  <option value={URGENCY_LEVELS.HIGH}>Alta</option>
+                  <option value={URGENCY_LEVELS.CRITICAL}>Crítica</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ID de Estudiante
+                </label>
+                <input
+                  type="text"
+                  name="studentId"
+                  value={filters.studentId}
+                  onChange={handleFilterChange}
+                  placeholder="UUID del estudiante"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
               </div>
             </div>
           )}
@@ -351,7 +324,7 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             <h2 className="text-2xl font-bold text-gray-900">
               Todos los Incidentes
               <span className="text-gray-500 text-lg ml-2">
-                ({filteredIncidents.length})
+                ({incidents.length})
               </span>
             </h2>
           </div>
@@ -361,7 +334,7 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
               <span className="ml-3 text-gray-600">Cargando incidentes...</span>
             </div>
-          ) : filteredIncidents.length === 0 ? (
+          ) : incidents.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm p-12 text-center">
               <div className="text-gray-400 mb-2">
                 <Filter className="w-12 h-12 mx-auto mb-4" />
@@ -383,7 +356,7 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredIncidents.map((incident) => (
+              {incidents.map((incident) => (
                 <div key={incident.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
@@ -455,11 +428,11 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
             <div className="space-y-2">
               <button
-                onClick={() => updateIncidentStatus(selectedIncident.id, 'Pendiente')}
-                disabled={updating || selectedIncident.estado === 'Pendiente'}
+                onClick={() => updateIncidentStatus(selectedIncident.id, INCIDENT_STATUS.PENDING)}
+                disabled={updating}
                 className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {updating && selectedIncident.estado !== 'Pendiente' ? (
+                {updating ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Actualizando...
@@ -469,32 +442,25 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                 )}
               </button>
               <button
-                onClick={() => updateIncidentStatus(selectedIncident.id, 'En Atención')}
-                disabled={updating || selectedIncident.estado === 'En Atención'}
+                onClick={() => updateIncidentStatus(selectedIncident.id, INCIDENT_STATUS.IN_PROGRESS)}
+                disabled={updating}
                 className="w-full px-4 py-3 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 font-semibold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {updating && selectedIncident.estado !== 'En Atención' ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Actualizando...
-                  </span>
-                ) : (
-                  'En Atención'
-                )}
+                En Atención
               </button>
               <button
-                onClick={() => updateIncidentStatus(selectedIncident.id, 'Resuelto')}
-                disabled={updating || selectedIncident.estado === 'Resuelto'}
+                onClick={() => updateIncidentStatus(selectedIncident.id, INCIDENT_STATUS.COMPLETED)}
+                disabled={updating}
                 className="w-full px-4 py-3 bg-green-100 hover:bg-green-200 text-green-800 font-semibold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {updating && selectedIncident.estado !== 'Resuelto' ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Actualizando...
-                  </span>
-                ) : (
-                  'Resuelto'
-                )}
+                Resuelto
+              </button>
+              <button
+                onClick={() => updateIncidentStatus(selectedIncident.id, INCIDENT_STATUS.REJECTED)}
+                disabled={updating}
+                className="w-full px-4 py-3 bg-red-100 hover:bg-red-200 text-red-800 font-semibold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Rechazado
               </button>
             </div>
 

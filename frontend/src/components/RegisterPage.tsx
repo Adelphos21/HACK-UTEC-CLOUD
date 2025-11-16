@@ -1,15 +1,15 @@
 import React, { useState, type FormEvent, type ChangeEvent } from 'react';
-import type { RegisterPageProps, RegisterData } from '../types';
-import { authApi } from '../api';
+import type { RegisterPageProps } from '../types';
+import { authApi, USER_ROLES } from '../api';
 
 const RegisterPage: React.FC<RegisterPageProps> = ({ onBack }) => {
-  const [formData, setFormData] = useState<RegisterData>({
+  const [formData, setFormData] = useState({
     nombres: '',
     apellidos: '',
     dni: '',
     correo: '',
     password: '',
-    rol: 'Estudiante'
+    rol: USER_ROLES.STUDENT
   });
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<boolean>(false);
@@ -26,8 +26,11 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBack }) => {
     setLoading(true);
     
     try {
-      // Llamada real a la API
+      console.log('Enviando datos de registro:', formData);
+      
       const response = await authApi.register(formData);
+      
+      console.log('Respuesta del registro:', response);
       
       if (response.success) {
         setSuccess(true);
@@ -66,7 +69,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBack }) => {
 
           {success && (
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
-              Registro exitoso. Redirigiendo...
+              ✅ Registro exitoso. Redirigiendo al inicio de sesión...
             </div>
           )}
 
@@ -113,6 +116,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBack }) => {
                 required
                 disabled={loading}
               />
+              <p className="text-xs text-gray-500 mt-1">8 dígitos</p>
             </div>
 
             <div className="mb-4">
@@ -154,9 +158,9 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onBack }) => {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 disabled={loading}
               >
-                <option value="Estudiante">Estudiante</option>
-                <option value="Administrativo">Administrativo</option>
-                <option value="Autoridad">Autoridad</option>
+                <option value={USER_ROLES.STUDENT}>Estudiante</option>
+                <option value={USER_ROLES.ADMINISTRATIVE}>Personal Administrativo</option>
+                <option value={USER_ROLES.AUTHORITY}>Autoridad</option>
               </select>
             </div>
 

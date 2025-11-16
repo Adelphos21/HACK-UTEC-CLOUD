@@ -1,5 +1,66 @@
 // Configuración de la API
-const API_BASE_URL = 'https://79c3srjp89.execute-api.us-east-1.amazonaws.com/dev';
+const API_BASE_URL = 'https://j6du3eoo60.execute-api.us-east-1.amazonaws.com/dev';
+const WS_URL = 'wss://f5nub27py5.execute-api.us-east-1.amazonaws.com/dev';
+
+// ==================== CONSTANTES ====================
+
+// Tipos de incidentes
+export const INCIDENT_TYPES = {
+  INFRASTRUCTURE: 'infrastructure',
+  ELECTRIC_FAILURE: 'electric_failure',
+  WATER_FAILURE: 'water_failure',
+  SECURITY: 'security',
+  CLEANING: 'cleaning',
+  TECHNOLOGY: 'technology',
+  OTHER: 'other'
+} as const;
+
+export const INCIDENT_TYPE_LABELS: Record<string, string> = {
+  [INCIDENT_TYPES.INFRASTRUCTURE]: 'Infraestructura',
+  [INCIDENT_TYPES.ELECTRIC_FAILURE]: 'Falla Eléctrica',
+  [INCIDENT_TYPES.WATER_FAILURE]: 'Falla de Agua',
+  [INCIDENT_TYPES.SECURITY]: 'Seguridad',
+  [INCIDENT_TYPES.CLEANING]: 'Limpieza',
+  [INCIDENT_TYPES.TECHNOLOGY]: 'Tecnología',
+  [INCIDENT_TYPES.OTHER]: 'Otro'
+};
+
+// Niveles de urgencia
+export const URGENCY_LEVELS = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high',
+  CRITICAL: 'critical'
+} as const;
+
+export const URGENCY_LABELS: Record<string, string> = {
+  [URGENCY_LEVELS.LOW]: 'Baja',
+  [URGENCY_LEVELS.MEDIUM]: 'Media',
+  [URGENCY_LEVELS.HIGH]: 'Alta',
+  [URGENCY_LEVELS.CRITICAL]: 'Crítica'
+};
+
+// Estados de incidentes
+export const INCIDENT_STATUS = {
+  PENDING: 'pending',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  REJECTED: 'rejected'
+} as const;
+
+export const STATUS_LABELS: Record<string, string> = {
+  [INCIDENT_STATUS.PENDING]: 'Pendiente',
+  [INCIDENT_STATUS.IN_PROGRESS]: 'En Atención',
+  [INCIDENT_STATUS.COMPLETED]: 'Resuelto',
+  [INCIDENT_STATUS.REJECTED]: 'Rechazado'
+};
+
+// Roles de usuario
+export const USER_ROLES = {
+  STUDENT: 'Estudiante',
+  ADMINISTRATIVE: 'Personal administrativo',
+  AUTHORITY: 'Autoridad'
+} as const;
 
 // Tipos para las respuestas
 export interface ApiResponse<T> {
@@ -12,24 +73,30 @@ export interface ApiResponse<T> {
 export interface LoginResponse {
   access_token: string;
   refresh_token?: string;
-  token_type: string;
-  expires_in: number;
-  user: {
+  token_type?: string;
+  expires_in?: number;
+  user?: {
     user_id: string;
-    email: string;
-    nombre: string;
+    email?: string;
+    correo?: string;
+    nombre?: string;
+    nombres?: string;
     apellidos?: string;
-    rol: 'Estudiante' | 'Administrativo' | 'Autoridad';
+    rol: string;
   };
+  user_id?: string;
+  correo?: string;
+  nombre?: string;
+  rol?: string;
 }
 
 export interface RegisterRequest {
-  nombres: string;
-  apellidos: string;
-  dni: string;
-  correo: string;
-  password: string;
-  rol: 'Estudiante' | 'Administrativo' | 'Autoridad';
+  nombres: string;        // Nombres del usuario
+  apellidos: string;      // Apellidos del usuario
+  dni: string;            // DNI/documento de identidad (8 dígitos en Perú)
+  correo: string;         // Email institucional
+  password: string;       // Contraseña (mínimo 8 caracteres recomendado)
+  rol: string;            // "Estudiante" | "Personal administrativo" | "Autoridad"
 }
 
 export interface LoginRequest {
@@ -39,25 +106,45 @@ export interface LoginRequest {
 
 export interface IncidentResponse {
   incident_id: string;
-  tipo: string;
-  urgencia: 'Baja' | 'Media' | 'Alta' | 'Crítica';
-  descripcion: string;
-  ubicacion: string;
-  estado: 'Pendiente' | 'En Atención' | 'Resuelto';
-  reportado_por: string;
-  created_at: string;
-  updated_at: string;
+  type: string;           // Tipo de incidente
+  floor: number;          // Piso
+  ambient: string;        // Ambiente/aula
+  description: string;    // Descripción
+  urgency: string;        // "low", "medium", "high", "critical"
+  status: string;         // "pending", "in_progress", "completed", "rejected"
+  created_by: string;     // user_id del creador
+  created_at: string;     // ISO timestamp
+  updated_at: string;     // ISO timestamp
+  history?: Array<{
+    action: string;
+    by: string;
+    at: string;
+  }>;
 }
 
 export interface CreateIncidentRequest {
-  tipo: string;
-  ubicacion: string;
-  descripcion: string;
-  urgencia: 'Baja' | 'Media' | 'Alta' | 'Crítica';
+  type: string;           // ej: "electric_failure", "infrastructure", "security", etc.
+  description: string;    // Descripción del incidente
+  floor: number;          // Número de piso (ej: 11)
+  ambient: string;        // Ambiente/aula (ej: "S1101")
+  urgency: string;        // "low", "medium", "high", "critical"
+  created_by: string;     // user_id del estudiante que reporta
+}
+
+export interface EditIncidentRequest {
+  incident_id: string;
+  type?: string;
+  description?: string;
+  floor?: number;
+  ambient?: string;
+  urgency?: string;
+  admin_user_id?: string;
 }
 
 export interface UpdateIncidentStatusRequest {
-  estado: 'Pendiente' | 'En Atención' | 'Resuelto';
+  incident_id: string;
+  new_status: string;
+  user_id: string;
 }
 
 // Helper para manejar errores
@@ -70,7 +157,7 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
     try {
       if (contentType?.includes('application/json')) {
         const errorData = await response.json();
-        errorMessage = errorData.message || errorData.error || errorMessage;
+        errorMessage = errorData.message || errorData.error || errorData.body || errorMessage;
       } else {
         errorMessage = await response.text();
       }
@@ -92,10 +179,19 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
         data: data as T
       };
     } else {
-      return {
-        success: true,
-        data: undefined as T
-      };
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        return {
+          success: true,
+          data: data as T
+        };
+      } catch {
+        return {
+          success: true,
+          data: text as T
+        };
+      }
     }
   } catch (e) {
     return {
@@ -124,7 +220,9 @@ export const authApi = {
   // Registro de usuario
   register: async (data: RegisterRequest): Promise<ApiResponse<any>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/usuarios/register`, {
+      console.log('Registrando usuario:', data); // Debug
+      
+      const response = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(data)
@@ -132,6 +230,7 @@ export const authApi = {
       
       return await handleResponse(response);
     } catch (error) {
+      console.error('Error en register:', error);
       return {
         success: false,
         error: 'Error de conexión con el servidor'
@@ -142,32 +241,23 @@ export const authApi = {
   // Login de usuario
   login: async (data: LoginRequest): Promise<ApiResponse<LoginResponse>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/usuarios/login`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(data)
-      });
+      console.log('Intentando login con:', data.email); // Debug
       
-      return await handleResponse<LoginResponse>(response);
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Error de conexión con el servidor'
+      // Transformar "email" a "correo" para que coincida con el backend
+      const requestBody = {
+        correo: data.email,
+        password: data.password
       };
-    }
-  },
-
-  // Refresh token
-  refreshToken: async (refreshToken: string): Promise<ApiResponse<LoginResponse>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/usuarios/refresh`, {
+      
+      const response = await fetch(`${API_BASE_URL}/users/login`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ refresh_token: refreshToken })
+        body: JSON.stringify(requestBody)
       });
       
       return await handleResponse<LoginResponse>(response);
     } catch (error) {
+      console.error('Error en login:', error);
       return {
         success: false,
         error: 'Error de conexión con el servidor'
@@ -179,28 +269,66 @@ export const authApi = {
 // ==================== INCIDENTS ENDPOINTS ====================
 
 export const incidentsApi = {
-  // Obtener todos los incidentes
-  getAll: async (token: string, filters?: {
-    estado?: string;
-    tipo?: string;
-    urgencia?: string;
-  }): Promise<ApiResponse<IncidentResponse[]>> => {
+  // Crear nuevo incidente
+  create: async (data: CreateIncidentRequest): Promise<ApiResponse<IncidentResponse>> => {
     try {
-      let url = `${API_BASE_URL}/incidentes`;
+      const response = await fetch(`${API_BASE_URL}/incidents/create`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data)
+      });
       
-      // Agregar filtros como query params
-      if (filters) {
-        const params = new URLSearchParams();
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value) params.append(key, value);
-        });
-        const queryString = params.toString();
-        if (queryString) url += `?${queryString}`;
-      }
+      return await handleResponse<IncidentResponse>(response);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Error de conexión con el servidor'
+      };
+    }
+  },
 
-      const response = await fetch(url, {
+  // Editar incidente
+  edit: async (data: EditIncidentRequest): Promise<ApiResponse<any>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/incidents/edit`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data)
+      });
+      
+      return await handleResponse(response);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Error de conexión con el servidor'
+      };
+    }
+  },
+
+  // Actualizar estado de incidente
+  updateStatus: async (data: UpdateIncidentStatusRequest): Promise<ApiResponse<any>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/incidents/update-status`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data)
+      });
+      
+      return await handleResponse(response);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Error de conexión con el servidor'
+      };
+    }
+  },
+
+  // Buscar incidentes por estudiante
+  getByStudent: async (studentId: string): Promise<ApiResponse<IncidentResponse[]>> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/incidents/by-student?student_id=${encodeURIComponent(studentId)}`, {
         method: 'GET',
-        headers: getAuthHeaders(token)
+        headers: getAuthHeaders()
       });
       
       return await handleResponse<IncidentResponse[]>(response);
@@ -212,15 +340,15 @@ export const incidentsApi = {
     }
   },
 
-  // Obtener un incidente por ID
-  getById: async (token: string, incidentId: string): Promise<ApiResponse<IncidentResponse>> => {
+  // Buscar incidentes por piso
+  getByFloor: async (floor: number): Promise<ApiResponse<IncidentResponse[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/incidentes/${incidentId}`, {
+      const response = await fetch(`${API_BASE_URL}/incidents/by-floor?floor=${floor}`, {
         method: 'GET',
-        headers: getAuthHeaders(token)
+        headers: getAuthHeaders()
       });
       
-      return await handleResponse<IncidentResponse>(response);
+      return await handleResponse<IncidentResponse[]>(response);
     } catch (error) {
       return {
         success: false,
@@ -229,72 +357,15 @@ export const incidentsApi = {
     }
   },
 
-  // Crear nuevo incidente
-  create: async (token: string, data: CreateIncidentRequest): Promise<ApiResponse<IncidentResponse>> => {
+  // Buscar incidentes por urgencia
+  getByUrgency: async (urgency: string): Promise<ApiResponse<IncidentResponse[]>> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/incidentes`, {
-        method: 'POST',
-        headers: getAuthHeaders(token),
-        body: JSON.stringify(data)
-      });
-      
-      return await handleResponse<IncidentResponse>(response);
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Error de conexión con el servidor'
-      };
-    }
-  },
-
-  // Actualizar estado de incidente
-  updateStatus: async (
-    token: string, 
-    incidentId: string, 
-    data: UpdateIncidentStatusRequest
-  ): Promise<ApiResponse<IncidentResponse>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/incidentes/${incidentId}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(token),
-        body: JSON.stringify(data)
-      });
-      
-      return await handleResponse<IncidentResponse>(response);
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Error de conexión con el servidor'
-      };
-    }
-  },
-
-  // Eliminar incidente (solo admin)
-  delete: async (token: string, incidentId: string): Promise<ApiResponse<void>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/incidentes/${incidentId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(token)
-      });
-      
-      return await handleResponse<void>(response);
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Error de conexión con el servidor'
-      };
-    }
-  },
-
-  // Obtener historial de un incidente
-  getHistory: async (token: string, incidentId: string): Promise<ApiResponse<any[]>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/incidentes/${incidentId}/historial`, {
+      const response = await fetch(`${API_BASE_URL}/incidents/by-urgency?urgency=${encodeURIComponent(urgency)}`, {
         method: 'GET',
-        headers: getAuthHeaders(token)
+        headers: getAuthHeaders()
       });
       
-      return await handleResponse<any[]>(response);
+      return await handleResponse<IncidentResponse[]>(response);
     } catch (error) {
       return {
         success: false,
@@ -304,41 +375,42 @@ export const incidentsApi = {
   }
 };
 
-// ==================== USERS ENDPOINTS ====================
+// ==================== WEBSOCKET ====================
 
-export const usersApi = {
-  // Obtener perfil de usuario actual
-  getProfile: async (token: string): Promise<ApiResponse<any>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/usuarios/perfil`, {
-        method: 'GET',
-        headers: getAuthHeaders(token)
-      });
-      
-      return await handleResponse(response);
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Error de conexión con el servidor'
-      };
+export const websocketApi = {
+  // Crear conexión WebSocket
+  connect: (userId: string, rol: string, token?: string): WebSocket => {
+    let url = `${WS_URL}?user_id=${encodeURIComponent(userId)}&rol=${encodeURIComponent(rol)}`;
+    
+    if (token) {
+      url += `&token=${encodeURIComponent(token)}`;
     }
+    
+    return new WebSocket(url);
   },
 
-  // Actualizar perfil
-  updateProfile: async (token: string, data: any): Promise<ApiResponse<any>> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/usuarios/perfil`, {
-        method: 'PUT',
-        headers: getAuthHeaders(token),
-        body: JSON.stringify(data)
-      });
-      
-      return await handleResponse(response);
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Error de conexión con el servidor'
-      };
+  // Helper para configurar listeners
+  setupListeners: (
+    ws: WebSocket,
+    onMessage: (data: any) => void,
+    onError?: (error: Event) => void,
+    onClose?: (event: CloseEvent) => void
+  ) => {
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onMessage(data);
+      } catch (e) {
+        console.error('Error parseando mensaje WebSocket:', e);
+      }
+    };
+
+    if (onError) {
+      ws.onerror = onError;
+    }
+
+    if (onClose) {
+      ws.onclose = onClose;
     }
   }
 };
@@ -347,5 +419,7 @@ export const usersApi = {
 export default {
   auth: authApi,
   incidents: incidentsApi,
-  users: usersApi
+  websocket: websocketApi,
+  WS_URL,
+  API_BASE_URL
 };

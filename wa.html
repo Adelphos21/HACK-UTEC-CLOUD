@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test WebSocket - Incidentes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .connection-section {
+            display: grid;
+            gap: 15px;
+        }
+        
+        label {
+            font-weight: 600;
+            color: #333;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        .btn-connect {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-connect:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+        }
+        
+        .btn-disconnect {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-disconnect:hover {
+            background: #dc2626;
+        }
+        
+        .btn:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            margin-top: 15px;
+        }
+        
+        .status.connected {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status.disconnected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .messages-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .message {
+            background: #f9fafb;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .message-type {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .message-time {
+            color: #6b7280;
+            font-size: 12px;
+        }
+        
+        .message-body {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .clear-btn {
+            background: #f59e0b;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .clear-btn:hover {
+            background: #d97706;
+        }
+        
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .info-box h3 {
+            color: #1e40af;
+            margin-bottom: 10px;
+        }
+        
+        .info-box ul {
+            margin-left: 20px;
+            color: #1e3a8a;
+        }
+        
+        .info-box li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Test WebSocket - Sistema de Incidentes</h1>
+        
+        <!-- Sección de Conexión -->
+        <div class="card">
+            <h2 style="margin-bottom: 20px; color: #333;">📡 Configuración de Conexión</h2>
+            
+            <div class="connection-section">
+                <div>
+                    <label for="wsUrl">WebSocket URL:</label>
+                    <input type="text" id="wsUrl" placeholder="wss://tu-api-id.execute-api.us-east-1.amazonaws.com/dev">
+                </div>
+                
+                <div>
+                    <label for="userId">User ID:</label>
+                    <input type="text" id="userId" placeholder="admin1" value="admin1">
+                </div>
+                
+                <div>
+                    <label for="rol">Rol:</label>
+                    <select id="rol">
+                        <option value="Personal administrativo">Personal administrativo</option>
+                        <option value="Autoridad">Autoridad</option>
+                        <option value="Estudiante">Estudiante</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="token">JWT Token (opcional):</label>
+                    <input type="text" id="token" placeholder="eyJhbGciOi...">
+                </div>
+                
+                <div>
+                    <button class="btn btn-connect" id="connectBtn" onclick="connect()">Conectar</button>
+                    <button class="btn btn-disconnect" id="disconnectBtn" onclick="disconnect()" disabled>Desconectar</button>
+                </div>
+                
+                <div id="statusContainer"></div>
+            </div>
+        </div>
+        
+        <!-- Sección de Mensajes -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="color: #333;">📬 Notificaciones Recibidas</h2>
+                <button class="clear-btn" onclick="clearMessages()">Limpiar Mensajes</button>
+            </div>
+            
+            <div id="messagesCount" style="color: #6b7280; margin-bottom: 10px;">
+                Total de mensajes: <strong>0</strong>
+            </div>
+            
+            <div class="messages-container" id="messages">
+                <div style="text-align: center; color: #9ca3af; padding: 40px;">
+                    Esperando notificaciones...
+                </div>
+            </div>
+        </div>
+        
+        <!-- Información de Prueba -->
+        <div class="card info-box">
+            <h3>📋 Instrucciones para Probar:</h3>
+            <ul>
+                <li><strong>Paso 1:</strong> Pega tu WebSocket URL (obtenida del deploy)</li>
+                <li><strong>Paso 2:</strong> Selecciona un rol y haz clic en "Conectar"</li>
+                <li><strong>Paso 3:</strong> Usa Postman/curl para crear o actualizar incidentes</li>
+                <li><strong>Paso 4:</strong> Observa las notificaciones aparecer en tiempo real</li>
+            </ul>
+            
+            <h3 style="margin-top: 20px;">🧪 Endpoints para probar con Postman:</h3>
+            <ul>
+                <li><code>POST /incidents/create</code> - Crear incidente (notifica a admins)</li>
+                <li><code>POST /incidents/update-status</code> - Cambiar estado (notifica a admins y estudiante)</li>
+                <li><code>PUT /incidents/edit</code> - Editar incidente (notifica al estudiante)</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let messageCount = 0;
+
+        function updateStatus(connected) {
+            const container = document.getElementById('statusContainer');
+            const statusClass = connected ? 'connected' : 'disconnected';
+            const statusText = connected ? '✅ Conectado' : '❌ Desconectado';
+            
+            container.innerHTML = `<div class="status ${statusClass}">${statusText}</div>`;
+            
+            document.getElementById('connectBtn').disabled = connected;
+            document.getElementById('disconnectBtn').disabled = !connected;
+        }
+
+        function connect() {
+            const wsUrl = document.getElementById('wsUrl').value.trim();
+            const userId = document.getElementById('userId').value.trim();
+            const rol = document.getElementById('rol').value;
+            const token = document.getElementById('token').value.trim();
+            
+            if (!wsUrl) {
+                alert('Por favor ingresa la URL del WebSocket');
+                return;
+            }
+            
+            if (!userId) {
+                alert('Por favor ingresa un User ID');
+                return;
+            }
+            
+            // Construir URL con query params
+            let url = `${wsUrl}?user_id=${encodeURIComponent(userId)}&rol=${encodeURIComponent(rol)}`;
+            if (token) {
+                url += `&token=${encodeURIComponent(token)}`;
+            }
+            
+            console.log('Conectando a:', url);
+            
+            try {
+                ws = new WebSocket(url);
+                
+                ws.onopen = () => {
+                    console.log('✅ WebSocket conectado');
+                    updateStatus(true);
+                    addSystemMessage('Conexión establecida exitosamente');
+                };
+                
+                ws.onmessage = (event) => {
+                    console.log('📩 Mensaje recibido:', event.data);
+                    try {
+                        const data = JSON.parse(event.data);
+                        addMessage(data);
+                    } catch (e) {
+                        addMessage({ raw: event.data });
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('❌ WebSocket error:', error);
+                    addSystemMessage('Error en la conexión', true);
+                };
+                
+                ws.onclose = () => {
+                    console.log('🔌 WebSocket desconectado');
+                    updateStatus(false);
+                    addSystemMessage('Conexión cerrada');
+                    ws = null;
+                };
+                
+            } catch (error) {
+                console.error('Error al conectar:', error);
+                alert('Error al conectar: ' + error.message);
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function addMessage(data) {
+            messageCount++;
+            document.getElementById('messagesCount').innerHTML = 
+                `Total de mensajes: <strong>${messageCount}</strong>`;
+            
+            const messagesDiv = document.getElementById('messages');
+            
+            // Limpiar mensaje inicial
+            if (messageCount === 1) {
+                messagesDiv.innerHTML = '';
+            }
+            
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            
+            const now = new Date().toLocaleTimeString('es-PE', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            
+            const messageType = data.tipo || 'Mensaje';
+            
+            messageEl.innerHTML = `
+                <div class="message-header">
+                    <span class="message-type">📨 ${messageType}</span>
+                    <span class="message-time">${now}</span>
+                </div>
+                <div class="message-body">${JSON.stringify(data, null, 2)}</div>
+            `;
+            
+            messagesDiv.insertBefore(messageEl, messagesDiv.firstChild);
+        }
+
+        function addSystemMessage(text, isError = false) {
+            const messagesDiv = document.getElementById('messages');
+            
+            if (messageCount === 0) {
+                messagesDiv.innerHTML = '';
+            }
+            
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            messageEl.style.borderLeftColor = isError ? '#ef4444' : '#10b981';
+            
+            const now = new Date().toLocaleTimeString('es-PE', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            
+            messageEl.innerHTML = `
+                <div class="message-header">
+                    <span class="message-type">${isError ? '⚠️' : 'ℹ️'} Sistema</span>
+                    <span class="message-time">${now}</span>
+                </div>
+                <div class="message-body">${text}</div>
+            `;
+            
+            messagesDiv.insertBefore(messageEl, messagesDiv.firstChild);
+        }
+
+        function clearMessages() {
+            messageCount = 0;
+            document.getElementById('messages').innerHTML = `
+                <div style="text-align: center; color: #9ca3af; padding: 40px;">
+                    Esperando notificaciones...
+                </div>
+            `;
+            document.getElementById('messagesCount').innerHTML = 
+                'Total de mensajes: <strong>0</strong>';
+        }
+
+        // Cerrar conexión al salir
+        window.addEventListener('beforeunload', () => {
+            if (ws) {
+                ws.close();
+            }
+        });
+
+        // Inicializar estado
+        updateStatus(false);
+    </script>
+</body>
+</html>
