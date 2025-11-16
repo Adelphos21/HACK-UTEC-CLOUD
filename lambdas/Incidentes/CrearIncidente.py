@@ -3,6 +3,8 @@ import os, json, uuid, time
 import boto3
 from datetime import datetime, timezone
 from WebSocket.notify import notify_admins
+from lambdas.utils import response
+
 ddb = boto3.resource('dynamodb')
 table = ddb.Table("Incidents")
 
@@ -10,9 +12,9 @@ def lambda_handler(event, context):
     body = json.loads(event.get('body', '{}'))
     # validate simple
     if 'type' not in body or 'description' not in body:
-        return { "statusCode": 400, "body": json.dumps({"message":"type and description required"}) }
+        return response(400, {"message": "type and description required"})
     if body.get('urgency') not in ('low','medium','high','critical'):
-        return { "statusCode": 400, "body": json.dumps({"message":"invalid urgency"}) }
+        return response(400, {"message": "invalid urgency"})
 
     incident_id = uuid.uuid4().hex
     now = datetime.now(timezone.utc).isoformat()
@@ -39,5 +41,9 @@ def lambda_handler(event, context):
     "estado": item["status"]
     }
     notify_admins(message)
-    return { "statusCode": 201, "body": json.dumps({"incident_id": incident_id, "status":"pending","created_at": now}) }
+    return response(201, {
+        "incident_id": incident_id,
+        "status": "pending",
+        "created_at": now
+    })
 

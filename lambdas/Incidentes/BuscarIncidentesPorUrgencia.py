@@ -3,8 +3,9 @@ import json
 import boto3
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
+from lambdas.utils import response
 
-VALID_URGENCIES = {"low","medium","high","critical"}
+VALID_URGENCIES = {"low", "medium", "high", "critical"}
 
 def clean_decimals(obj):
     if isinstance(obj, list):
@@ -12,7 +13,6 @@ def clean_decimals(obj):
     if isinstance(obj, dict):
         return {k: clean_decimals(v) for k, v in obj.items()}
     if isinstance(obj, Decimal):
-        # Convertir a int si no tiene decimales
         if obj % 1 == 0:
             return int(obj)
         return float(obj)
@@ -28,13 +28,14 @@ def lambda_handler(event, context):
         urgency = params.get("urgency")
 
         if not urgency:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"message": "Debe enviar ?urgency=low|medium|high|critical"})
-            }
+            return response(400, {
+                "message": "Debe enviar ?urgency=low|medium|high|critical"
+            })
 
         if urgency not in VALID_URGENCIES:
-            return {"statusCode": 400, "body": json.dumps({"message": "valor de urgency inválido"})}
+            return response(400, {
+                "message": "valor de urgency inválido"
+            })
 
         resp = table.query(
             IndexName="IncidentsByUrgency",
@@ -43,10 +44,10 @@ def lambda_handler(event, context):
 
         items = clean_decimals(resp.get("Items", []))
 
-        return {"statusCode": 200, "body": json.dumps(items)}
+        return response(200, items)
 
     except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"message": "error interno", "error": str(e)})
-        }
+        return response(500, {
+            "message": "error interno",
+            "error": str(e)
+        })
