@@ -9,6 +9,8 @@ provider:
   runtime: python3.13
   memorySize: 256
   timeout: 20
+  stage: dev
+  region: us-east-1
   iam:
     role: arn:aws:iam::${env:AWS_ACCOUNT_ID}:role/${env:ROLE_NAME}
   environment:
