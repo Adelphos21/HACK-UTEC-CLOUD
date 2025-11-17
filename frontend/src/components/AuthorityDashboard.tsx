@@ -41,7 +41,7 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       
       // Recargar incidentes cuando hay cambios
       if (notification.type === 'nuevo_incidente' || 
-          notification.type === 'cambio_estado_incidente') {
+          notification.type === 'cambio_estado') {
         loadIncidents();
       }
     }

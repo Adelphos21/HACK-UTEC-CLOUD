@@ -40,7 +40,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
       case 'nuevo_incidente':
         return <AlertCircle className="w-5 h-5 text-orange-500" />;
       case 'cambio_estado':
-      case 'cambio_estado_incidente':
+      case 'cambio_estado':
         return <Info className="w-5 h-5 text-blue-500" />;
       case 'actualizacion_incidente':
       case 'incidente_editado':
@@ -55,7 +55,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
       case 'nuevo_incidente':
         return 'bg-orange-50 border-orange-200';
       case 'cambio_estado':
-      case 'cambio_estado_incidente':
+      case 'cambio_estado':
         return 'bg-blue-50 border-blue-200';
       case 'actualizacion_incidente':
       case 'incidente_editado':

@@ -11,7 +11,7 @@ export interface Notification {
 }
 
 interface UseWebSocketProps {
-  userId: string;
+  userId: string | null;
   rol: string;
   onNotification?: (notification: Notification) => void;
 }
@@ -20,12 +20,15 @@ export const useWebSocket = ({ userId, rol, onNotification }: UseWebSocketProps)
   const [isConnected, setIsConnected] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 
   const connect = () => {
+    if (!userId) return;
     try {
       const token = localStorage.getItem('token');
       console.log('🔌 Conectando WebSocket...', { userId, rol });
+      
       
       const ws = websocketApi.connect(userId, rol, token || undefined);
       wsRef.current = ws;
@@ -126,13 +129,12 @@ export const useWebSocket = ({ userId, rol, onNotification }: UseWebSocketProps)
   };
 
   // Conectar al montar, desconectar al desmontar
-  useEffect(() => {
-    connect();
+    useEffect(() => {
+    if (!userId) return;  
 
-    return () => {
-      disconnect();
-    };
-  }, [userId, rol]);
+    connect();
+    return () => disconnect();
+    }, [userId, rol]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

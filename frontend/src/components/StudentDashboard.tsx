@@ -33,7 +33,7 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       // Si es una actualización de incidente del estudiante, recargar la lista
       if (notification.type === 'actualizacion_incidente' || 
           notification.type === 'incidente_editado' ||
-          notification.type === 'cambio_estado_incidente') {
+          notification.type === 'cambio_estado') {
         loadIncidents();
       }
     }

@@ -52,7 +52,7 @@ function App() {
     // Persistir en localStorage
     localStorage.setItem('access_token', authToken);
     localStorage.setItem('user_data', JSON.stringify(userData));
-    localStorage.setItem('user_id', userData.user_id);
+    localStorage.setItem('user_id', userData.user_id ?? '');
     
     
   };
