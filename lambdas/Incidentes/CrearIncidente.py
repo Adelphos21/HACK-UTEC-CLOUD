@@ -8,6 +8,15 @@ from lambdas.utils import response
 ddb = boto3.resource('dynamodb')
 table = ddb.Table("Incidents")
 users_table = ddb.Table(os.environ["USERS_TABLE"])
+INCIDENT_TYPE_LABELS = {
+    'infrastructure': 'Infraestructura',
+    'electric_failure': 'Falla Eléctrica',
+    'water_failure': 'Falla de Agua',
+    'security': 'Seguridad',
+    'cleaning': 'Limpieza',
+    'technology': 'Tecnología',
+    'other': 'Otro'
+}
 
 def lambda_handler(event, context):
     body = json.loads(event.get('body', '{}'))
@@ -53,9 +62,12 @@ def lambda_handler(event, context):
             "at": now}]
     }
     table.put_item(Item=item)
+    incident_type_label = INCIDENT_TYPE_LABELS.get(item["type"], "Incidente")
+    
     message = {
-       "tipo": "nuevo_incidente",
+        "tipo": "nuevo_incidente",
         "incident_id": incident_id,
+        "tipo_incidente": incident_type_label, 
         "descripcion": item["description"],
         "urgencia": item["urgency"],
         "estado": item["status"],

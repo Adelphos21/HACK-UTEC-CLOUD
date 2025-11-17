@@ -1,5 +1,5 @@
 import React, { useState, useEffect, type ChangeEvent } from 'react';
-import { LogOut, X, MapPin, Clock, Filter, Loader2, RefreshCw } from 'lucide-react';
+import { LogOut, X, MapPin, Clock, Filter, Loader2, RefreshCw, Search } from 'lucide-react';
 import type { DashboardProps, Incident } from '../types';
 import { incidentsApi, INCIDENT_STATUS, URGENCY_LEVELS, STATUS_LABELS, URGENCY_LABELS, INCIDENT_TYPE_LABELS } from '../api';
 import { useWebSocket, type Notification } from '../hooks/useWebSocket';
@@ -15,14 +15,27 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [error, setError] = useState<string>('');
   const [toasts, setToasts] = useState<Notification[]>([]);
   
+  // 🔧 Función para obtener el peso de urgencia (para ordenamiento)
+const getUrgencyWeight = (urgency: string): number => {
+  const weights: Record<string, number> = {
+    'critical': 4,
+    'high': 3,
+    'medium': 2,
+    'low': 1
+  };
+  return weights[urgency] || 0;
+};
+
+
+
   // Estados de filtros
   const [filters, setFilters] = useState({
     floor: '',
     urgency: '',
     status: '',
-    studentId: ''
+    searchName: ''
   });
-
+  const [searchInput, setSearchInput] = useState('');
   // 🔔 Hook de WebSocket
 // 🔔 Hook de WebSocket
 const {
@@ -120,56 +133,76 @@ const {
   }, []);
 
   const loadIncidents = async () => {
-    setLoading(true);
-    setError('');
+  setLoading(true);
+  setError('');
+  
+  try {
+    const response = await incidentsApi.getAll();
     
-    try {
-      // 🔧 SIEMPRE obtener TODOS los incidentes y filtrar en el cliente
-      const response = await incidentsApi.getAll();
+    if (response.success && response.data) {
+      const allIncidents = response.data.map(mapIncidentFromAPI);
       
-      if (response.success && response.data) {
-        const allIncidents = response.data.map(mapIncidentFromAPI);
+      //  Aplicar filtros en el cliente
+      const filteredIncidents = allIncidents.filter(incident => {
+        if (filters.floor && incident._raw?.floor !== parseInt(filters.floor)) {
+          return false;
+        }
         
-        // 🔧 Aplicar filtros en el cliente
-        const filteredIncidents = allIncidents.filter(incident => {
-          // Filtro por piso
-          if (filters.floor && incident._raw?.floor !== parseInt(filters.floor)) {
-            return false;
-          }
-          
-          // Filtro por urgencia
-          if (filters.urgency && incident._raw?.urgency !== filters.urgency) {
-            return false;
-          }
-          
-          // Filtro por estado
-          if (filters.status && incident._raw?.status !== filters.status) {
-            return false;
-          }
-          
-          // Filtro por estudiante
-          if (filters.studentId && incident._raw?.created_by !== filters.studentId) {
-            return false;
-          }
-          
-          return true;
-        });
+        if (filters.urgency && incident._raw?.urgency !== filters.urgency) {
+          return false;
+        }
         
-        setIncidents(filteredIncidents);
-      } else {
-        setError(response.error || 'Error al cargar incidentes');
-      }
-    } catch (err) {
-      console.error('Error cargando incidentes:', err);
-      setError('Error de conexión');
-    } finally {
-      setLoading(false);
+        if (filters.status && incident._raw?.status !== filters.status) {
+          return false;
+        }
+        
+        if (filters.searchName) {
+            const searchTerm = filters.searchName.toLowerCase().trim();
+            const reportedBy = (incident.reportadoPor || '').toLowerCase();
+            
+            if (!reportedBy.includes(searchTerm)) {
+              return false;
+            }
+          }
+        
+        return true;
+      });
+      
+      // Ordenar por urgencia (mayor a menor) y luego por fecha (más reciente primero)
+      const sortedIncidents = filteredIncidents.sort((a, b) => {
+        // Primero comparar por urgencia
+        const urgencyA = getUrgencyWeight(a._raw?.urgency || 'low');
+        const urgencyB = getUrgencyWeight(b._raw?.urgency || 'low');
+        
+        if (urgencyA !== urgencyB) {
+          return urgencyB - urgencyA; // Mayor urgencia primero
+        }
+        
+        // Si tienen la misma urgencia, ordenar por fecha (más reciente primero)
+        const dateA = new Date(a.fecha || 0).getTime();
+        const dateB = new Date(b.fecha || 0).getTime();
+        return dateB - dateA;
+      });
+      
+      setIncidents(sortedIncidents);
+    } else {
+      setError(response.error || 'Error al cargar incidentes');
     }
-  };
+  } catch (err) {
+    console.error('Error cargando incidentes:', err);
+    setError('Error de conexión');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleFilterChange = (e: ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+    const handleSearchInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setSearchInput(e.target.value);
   };
 
   const clearFilters = () => {
@@ -177,16 +210,26 @@ const {
       floor: '',
       urgency: '',
       status: '',
-      studentId: ''
+      searchName: ''
     });
+    setSearchInput('');
   };
+
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      setFilters(prev => ({ ...prev, searchName: searchInput }));
+    }, 500); // Esperar 500ms
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchInput]);
 
   // Recargar incidentes cuando cambien los filtros
   useEffect(() => {
     if (!loading) {
       loadIncidents();
     }
-  }, [filters.floor, filters.urgency, filters.status, filters.studentId]);
+  }, [filters.floor, filters.urgency, filters.status, filters.searchName]);
+
 
   const updateIncidentStatus = async (id: string, newStatus: string) => {
     setUpdating(true);
@@ -416,19 +459,27 @@ const {
                 </select>
               </div>
 
+       {/* ✅ MODIFICADO: Búsqueda por nombre */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ID de Estudiante
+                  Buscar por nombre
                 </label>
-                <input
-                  type="text"
-                  name="studentId"
-                  value={filters.studentId}
-                  onChange={handleFilterChange}
-                  placeholder="UUID del estudiante"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  disabled={loading}
-                />
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={handleSearchInputChange}
+                    placeholder="Nombre del estudiante"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    disabled={loading}
+                  />
+                </div>
+                {searchInput && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Buscando: "{searchInput}"
+                  </p>
+                )}
               </div>
             </div>
           )}

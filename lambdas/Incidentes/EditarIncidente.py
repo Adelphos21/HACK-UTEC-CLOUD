@@ -8,6 +8,23 @@ from lambdas.utils import response
 
 ddb = boto3.resource("dynamodb")
 table = ddb.Table(os.environ["INCIDENTS_TABLE"])
+INCIDENT_TYPE_LABELS = {
+    'infrastructure': 'Infraestructura',
+    'electric_failure': 'Falla Eléctrica',
+    'water_failure': 'Falla de Agua',
+    'security': 'Seguridad',
+    'cleaning': 'Limpieza',
+    'technology': 'Tecnología',
+    'other': 'Otro'
+}
+
+FIELD_LABELS = {
+    'type': 'tipo',
+    'description': 'descripción',
+    'floor': 'piso',
+    'ambient': 'ambiente',
+    'urgency': 'urgencia'
+}
 
 EDITABLE_FIELDS = ["type", "description", "floor", "ambient", "urgency"]
 
@@ -64,11 +81,23 @@ def lambda_handler(event, context):
 
         # Notificación 3: Admin actualizó el incidente → notificar al estudiante
         if created_by and created_by != "unknown":
+            # Obtener el tipo de incidente actualizado o usar el existente
+            incident_type = body.get("type", incident.get("type"))
+            incident_type_label = INCIDENT_TYPE_LABELS.get(incident_type, "Incidente")
+            
+            # Convertir campos actualizados a etiquetas legibles
+            updated_fields = [key for key in body.keys() if key in EDITABLE_FIELDS]
+            updated_fields_labels = [FIELD_LABELS.get(f, f) for f in updated_fields]
+            
             message = {
                 "tipo": "incidente_editado",
                 "incident_id": incident_id,
+                "tipo_incidente": incident_type_label,  
+                "piso": body.get("floor", incident.get("floor")),      
+                "ambiente": body.get("ambient", incident.get("ambient")), 
                 "mensaje": "Un administrador ha actualizado tu incidente",
-                "campos_actualizados": list(body.keys()),
+                "campos_actualizados": updated_fields,  
+                "campos_actualizados_labels": updated_fields_labels,  
                 "timestamp": now
             }
             notify_user(message, created_by)
