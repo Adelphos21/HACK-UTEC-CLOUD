@@ -15,20 +15,16 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [error, setError] = useState<string>('');
   const [toasts, setToasts] = useState<Notification[]>([]);
   
-  // 🔧 Función para obtener el peso de urgencia (para ordenamiento)
-const getUrgencyWeight = (urgency: string): number => {
-  const weights: Record<string, number> = {
-    'critical': 4,
-    'high': 3,
-    'medium': 2,
-    'low': 1
+  const getUrgencyWeight = (urgency: string): number => {
+    const weights: Record<string, number> = {
+      'critical': 4,
+      'high': 3,
+      'medium': 2,
+      'low': 1
+    };
+    return weights[urgency] || 0;
   };
-  return weights[urgency] || 0;
-};
 
-
-
-  // Estados de filtros
   const [filters, setFilters] = useState({
     floor: '',
     urgency: '',
@@ -36,38 +32,31 @@ const getUrgencyWeight = (urgency: string): number => {
     searchName: ''
   });
   const [searchInput, setSearchInput] = useState('');
-  // 🔔 Hook de WebSocket
-// 🔔 Hook de WebSocket
-const {
-  isConnected,
-  notifications,
-  unreadCount,
-  markAsRead,
-  markAllAsRead,
-  clearNotifications,
-  clearNotification,
-  
-} = useWebSocket({
-  userId: user.user_id,
-  rol: user.rol,
-  token: localStorage.getItem('access_token'), // ✅ Pasar el token desde localStorage
-  onNotification: (notification) => {
-    // Mostrar toast
-    setToasts(prev => [...prev, notification]);
-    
-    // Recargar incidentes cuando hay cambios
-    if (notification.type === 'nuevo_incidente' || 
-        notification.type === 'cambio_estado') {
-      loadIncidents();
+
+  const {
+    isConnected,
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    clearNotifications,
+    clearNotification,
+  } = useWebSocket({
+    userId: user.user_id,
+    rol: user.rol,
+    token: localStorage.getItem('access_token'),
+    onNotification: (notification) => {
+      setToasts(prev => [...prev, notification]);
+      if (notification.type === 'nuevo_incidente' || notification.type === 'cambio_estado') {
+        loadIncidents();
+      }
     }
-  }
-});
+  });
 
   const removeToast = (toastId: string) => {
     setToasts(prev => prev.filter(t => t.id !== toastId));
   };
 
-  // 🔧 Función auxiliar para formatear fechas de forma segura
   const formatDate = (dateString: string | undefined): { timestamp: string; fecha: string } => {
     try {
       if (!dateString) {
@@ -103,7 +92,6 @@ const {
     }
   };
 
-  // Mapear incidente de API al formato del componente
   const mapIncidentFromAPI = (inc: any): Incident => {
     const { timestamp, fecha } = formatDate(inc.created_at);
     
@@ -117,7 +105,6 @@ const {
       timestamp,
       fecha,
       reportadoPor: inc.reported_by_name || inc.created_by || 'Desconocido',
-      // Guardar datos originales para filtrado
       _raw: {
         floor: inc.floor,
         urgency: inc.urgency,
@@ -127,36 +114,34 @@ const {
     };
   };
 
-  // Cargar incidentes al montar el componente
   useEffect(() => {
     loadIncidents();
   }, []);
 
   const loadIncidents = async () => {
-  setLoading(true);
-  setError('');
-  
-  try {
-    const response = await incidentsApi.getAll();
+    setLoading(true);
+    setError('');
     
-    if (response.success && response.data) {
-      const allIncidents = response.data.map(mapIncidentFromAPI);
+    try {
+      const response = await incidentsApi.getAll();
       
-      //  Aplicar filtros en el cliente
-      const filteredIncidents = allIncidents.filter(incident => {
-        if (filters.floor && incident._raw?.floor !== parseInt(filters.floor)) {
-          return false;
-        }
+      if (response.success && response.data) {
+        const allIncidents = response.data.map(mapIncidentFromAPI);
         
-        if (filters.urgency && incident._raw?.urgency !== filters.urgency) {
-          return false;
-        }
-        
-        if (filters.status && incident._raw?.status !== filters.status) {
-          return false;
-        }
-        
-        if (filters.searchName) {
+        const filteredIncidents = allIncidents.filter(incident => {
+          if (filters.floor && incident._raw?.floor !== parseInt(filters.floor)) {
+            return false;
+          }
+          
+          if (filters.urgency && incident._raw?.urgency !== filters.urgency) {
+            return false;
+          }
+          
+          if (filters.status && incident._raw?.status !== filters.status) {
+            return false;
+          }
+          
+          if (filters.searchName) {
             const searchTerm = filters.searchName.toLowerCase().trim();
             const reportedBy = (incident.reportadoPor || '').toLowerCase();
             
@@ -164,44 +149,41 @@ const {
               return false;
             }
           }
+          
+          return true;
+        });
         
-        return true;
-      });
-      
-      // Ordenar por urgencia (mayor a menor) y luego por fecha (más reciente primero)
-      const sortedIncidents = filteredIncidents.sort((a, b) => {
-        // Primero comparar por urgencia
-        const urgencyA = getUrgencyWeight(a._raw?.urgency || 'low');
-        const urgencyB = getUrgencyWeight(b._raw?.urgency || 'low');
+        const sortedIncidents = filteredIncidents.sort((a, b) => {
+          const urgencyA = getUrgencyWeight(a._raw?.urgency || 'low');
+          const urgencyB = getUrgencyWeight(b._raw?.urgency || 'low');
+          
+          if (urgencyA !== urgencyB) {
+            return urgencyB - urgencyA;
+          }
+          
+          const dateA = new Date(a.fecha || 0).getTime();
+          const dateB = new Date(b.fecha || 0).getTime();
+          return dateB - dateA;
+        });
         
-        if (urgencyA !== urgencyB) {
-          return urgencyB - urgencyA; // Mayor urgencia primero
-        }
-        
-        // Si tienen la misma urgencia, ordenar por fecha (más reciente primero)
-        const dateA = new Date(a.fecha || 0).getTime();
-        const dateB = new Date(b.fecha || 0).getTime();
-        return dateB - dateA;
-      });
-      
-      setIncidents(sortedIncidents);
-    } else {
-      setError(response.error || 'Error al cargar incidentes');
+        setIncidents(sortedIncidents);
+      } else {
+        setError(response.error || 'Error al cargar incidentes');
+      }
+    } catch (err) {
+      console.error('Error cargando incidentes:', err);
+      setError('Error de conexión');
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('Error cargando incidentes:', err);
-    setError('Error de conexión');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleFilterChange = (e: ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
   };
 
-    const handleSearchInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleSearchInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSearchInput(e.target.value);
   };
 
@@ -218,18 +200,16 @@ const {
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       setFilters(prev => ({ ...prev, searchName: searchInput }));
-    }, 500); // Esperar 500ms
+    }, 500);
 
     return () => clearTimeout(debounceTimer);
   }, [searchInput]);
 
-  // Recargar incidentes cuando cambien los filtros
   useEffect(() => {
     if (!loading) {
       loadIncidents();
     }
   }, [filters.floor, filters.urgency, filters.status, filters.searchName]);
-
 
   const updateIncidentStatus = async (id: string, newStatus: string) => {
     setUpdating(true);
@@ -260,20 +240,20 @@ const {
 
   const getUrgencyColor = (urgencia: string): string => {
     const colors: Record<string, string> = {
-      'Baja': 'bg-green-100 text-green-800',
-      'Media': 'bg-yellow-100 text-yellow-800',
-      'Alta': 'bg-orange-100 text-orange-800',
-      'Crítica': 'bg-red-100 text-red-800'
+      'Baja': 'bg-green-100 text-green-800 border-green-200',
+      'Media': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'Alta': 'bg-orange-100 text-orange-800 border-orange-200',
+      'Crítica': 'bg-red-100 text-red-800 border-red-200'
     };
     return colors[urgencia] || colors['Media'];
   };
 
   const getStatusColor = (estado: string): string => {
     const colors: Record<string, string> = {
-      'Pendiente': 'bg-gray-100 text-gray-800',
-      'En Atención': 'bg-cyan-100 text-cyan-800',
-      'Resuelto': 'bg-green-100 text-green-800',
-      'Rechazado': 'bg-red-100 text-red-800'
+      'Pendiente': 'bg-gray-100 text-gray-800 border-gray-200',
+      'En Atención': 'bg-cyan-100 text-cyan-800 border-cyan-200',
+      'Resuelto': 'bg-green-100 text-green-800 border-green-200',
+      'Rechazado': 'bg-red-100 text-red-800 border-red-200'
     };
     return colors[estado] || colors['Pendiente'];
   };
@@ -282,34 +262,35 @@ const {
   const resolved = incidents.filter(i => i.estado === 'Resuelto').length;
   const inProgress = incidents.filter(i => i.estado === 'En Atención').length;
   const pending = incidents.filter(i => i.estado === 'Pendiente').length;
-
-  // Contador de filtros activos
   const activeFiltersCount = Object.values(filters).filter(v => v !== '').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-cyan-500 rounded-lg p-2">
-              <span className="text-white text-xl font-bold">SOS</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header mejorado */}
+      <header className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b-4 border-cyan-500 px-6 py-4 shadow-xl">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-4">
+            <div className="bg-white rounded-xl p-3 shadow-lg">
+              <div className="flex items-center">
+                <span className="text-gray-900 text-2xl font-bold tracking-tight">Alerta</span>
+                <span className="text-cyan-500 text-2xl font-bold tracking-tight">UTEC</span>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Panel de Control</h1>
-              <p className="text-sm text-gray-600">Bienvenido, {user.nombre} ({user.rol})</p>
+            <div className="border-l-2 border-gray-600 pl-4">
+              <h1 className="text-2xl font-bold text-white tracking-tight">Panel de Control</h1>
+              <p className="text-sm text-gray-300">Bienvenido, <span className="font-semibold">{user.nombre}</span> • <span className="text-cyan-400 font-semibold">{user.rol}</span></p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button 
               onClick={loadIncidents}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-2.5 hover:bg-gray-700 rounded-lg transition-all duration-200 transform hover:scale-105"
               disabled={loading}
               title="Recargar incidentes"
             >
-              <RefreshCw className={`w-6 h-6 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-6 h-6 text-gray-300 hover:text-white transition-colors ${loading ? 'animate-spin' : ''}`} />
             </button>
             
-            {/* 🔔 Panel de Notificaciones */}
             <NotificationsPanel
               notifications={notifications}
               unreadCount={unreadCount}
@@ -319,17 +300,16 @@ const {
               onClearAll={clearNotifications}
             />
             
-            {/* Indicador de conexión WebSocket */}
             {!isConnected && (
-              <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+              <div className="flex items-center gap-2 text-xs text-yellow-300 bg-yellow-900/30 px-3 py-2 rounded-lg border border-yellow-700 animate-pulse">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
                 Reconectando...
               </div>
             )}
             
             <button
               onClick={onLogout}
-              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              className="flex items-center gap-2 px-4 py-2.5 text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-lg transition-all duration-200 font-medium"
             >
               <LogOut className="w-5 h-5" />
               <span>Cerrar Sesión</span>
@@ -340,61 +320,63 @@ const {
 
       <div className="max-w-7xl mx-auto p-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center justify-between">
-            <span>{error}</span>
+          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-6 py-4 rounded-lg mb-6 flex items-center justify-between shadow-md">
+            <span className="font-medium">{error}</span>
             <button 
               onClick={loadIncidents}
-              className="underline hover:no-underline"
+              className="underline hover:no-underline font-semibold"
             >
               Reintentar
             </button>
           </div>
         )}
 
-        {/* Estadísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="text-gray-600 text-sm mb-1">Total de Incidentes</div>
-            <div className="text-3xl font-bold text-gray-900">{totalIncidents}</div>
+        {/* Estadísticas mejoradas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-gray-900 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
+            <div className="text-gray-600 text-sm font-bold mb-2 uppercase tracking-wider">Total de Incidentes</div>
+            <div className="text-4xl font-bold text-gray-900">{totalIncidents}</div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="text-gray-600 text-sm mb-1">Resueltos</div>
-            <div className="text-3xl font-bold text-green-600">{resolved}</div>
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
+            <div className="text-gray-600 text-sm font-bold mb-2 uppercase tracking-wider">Resueltos</div>
+            <div className="text-4xl font-bold text-green-600">{resolved}</div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="text-gray-600 text-sm mb-1">En Atención</div>
-            <div className="text-3xl font-bold text-cyan-600">{inProgress}</div>
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-cyan-500 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
+            <div className="text-gray-600 text-sm font-bold mb-2 uppercase tracking-wider">En Atención</div>
+            <div className="text-4xl font-bold text-cyan-600">{inProgress}</div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="text-gray-600 text-sm mb-1">Pendientes</div>
-            <div className="text-3xl font-bold text-orange-600">{pending}</div>
+          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
+            <div className="text-gray-600 text-sm font-bold mb-2 uppercase tracking-wider">Pendientes</div>
+            <div className="text-4xl font-bold text-orange-600">{pending}</div>
           </div>
         </div>
 
-        {/* Panel de Filtros */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        {/* Panel de Filtros mejorado */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border-t-4 border-cyan-500">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-gray-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Filtros</h3>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-gradient-to-br from-gray-900 to-gray-700 rounded-lg shadow-md">
+                <Filter className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Filtros de Búsqueda</h3>
               {activeFiltersCount > 0 && (
-                <span className="bg-cyan-500 text-white text-xs font-semibold px-2 py-1 rounded-full">
+                <span className="bg-cyan-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md">
                   {activeFiltersCount}
                 </span>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               {activeFiltersCount > 0 && (
                 <button
                   onClick={clearFilters}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium text-sm"
+                  className="px-5 py-2.5 text-gray-600 hover:text-gray-900 font-semibold text-sm transition-colors"
                 >
                   Limpiar filtros
                 </button>
               )}
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium text-sm transition-colors"
+                className="px-6 py-2.5 bg-gradient-to-r from-gray-900 to-gray-700 hover:from-gray-800 hover:to-gray-600 text-white rounded-lg font-semibold text-sm transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 {showFilters ? 'Ocultar' : 'Mostrar'} filtros
               </button>
@@ -402,16 +384,16 @@ const {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t-2 border-gray-200">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">
                   Piso
                 </label>
                 <select
                   name="floor"
                   value={filters.floor}
                   onChange={handleFilterChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                   disabled={loading}
                 >
                   <option value="">Todos</option>
@@ -422,14 +404,14 @@ const {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">
                   Urgencia
                 </label>
                 <select
                   name="urgency"
                   value={filters.urgency}
                   onChange={handleFilterChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                   disabled={loading}
                 >
                   <option value="">Todas</option>
@@ -441,14 +423,14 @@ const {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">
                   Estado
                 </label>
                 <select
                   name="status"
                   value={filters.status}
                   onChange={handleFilterChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                   disabled={loading}
                 >
                   <option value="">Todos</option>
@@ -459,24 +441,23 @@ const {
                 </select>
               </div>
 
-       {/* ✅ MODIFICADO: Búsqueda por nombre */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">
                   Buscar por nombre
                 </label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="text"
                     value={searchInput}
                     onChange={handleSearchInputChange}
                     placeholder="Nombre del estudiante"
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-full pl-11 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                     disabled={loading}
                   />
                 </div>
                 {searchInput && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-1 font-medium">
                     Buscando: "{searchInput}"
                   </p>
                 )}
@@ -488,28 +469,28 @@ const {
         {/* Lista de Incidentes */}
         <div>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-3xl font-bold text-gray-900">
               Todos los Incidentes
-              <span className="text-gray-500 text-lg ml-2">
+              <span className="text-cyan-600 text-2xl ml-3">
                 ({incidents.length})
               </span>
             </h2>
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
-              <span className="ml-3 text-gray-600">Cargando incidentes...</span>
+            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl shadow-lg">
+              <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mb-4" />
+              <span className="text-gray-600 font-medium">Cargando incidentes...</span>
             </div>
           ) : incidents.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-              <div className="text-gray-400 mb-2">
-                <Filter className="w-12 h-12 mx-auto mb-4" />
+            <div className="bg-white rounded-xl shadow-lg p-16 text-center border-2 border-dashed border-gray-300">
+              <div className="text-gray-400 mb-4">
+                <Filter className="w-16 h-16 mx-auto" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">
+              <h3 className="text-xl font-bold text-gray-700 mb-2">
                 No se encontraron incidentes
               </h3>
-              <p className="text-gray-500">
+              <p className="text-gray-500 mb-6">
                 {activeFiltersCount > 0 
                   ? 'Intenta ajustar los filtros para ver más resultados'
                   : 'No hay incidentes registrados en el sistema'}
@@ -517,7 +498,7 @@ const {
               {activeFiltersCount > 0 && (
                 <button
                   onClick={clearFilters}
-                  className="mt-4 px-6 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg font-medium transition-colors"
+                  className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   Limpiar filtros
                 </button>
@@ -526,38 +507,38 @@ const {
           ) : (
             <div className="space-y-4">
               {incidents.map((incident) => (
-                <div key={incident.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-3">
+                <div key={incident.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-all duration-200 border-l-4 border-cyan-500 transform hover:-translate-y-1">
+                  <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <h3 className="text-lg font-semibold text-gray-900">{incident.tipo}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getUrgencyColor(incident.urgencia)}`}>
+                      <h3 className="text-xl font-bold text-gray-900">{incident.tipo}</h3>
+                      <span className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 ${getUrgencyColor(incident.urgencia)} shadow-sm`}>
                         {incident.urgencia}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(incident.estado)}`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 ${getStatusColor(incident.estado)} shadow-sm`}>
                         {incident.estado}
                       </span>
                       <button
                         onClick={() => setSelectedIncident(incident)}
-                        className="px-3 py-1 bg-cyan-500 hover:bg-cyan-600 text-white text-sm rounded-lg transition-colors"
+                        className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white text-sm font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
                       >
                         Cambiar Estado
                       </button>
                     </div>
                   </div>
-                  <p className="text-gray-700 mb-2">{incident.descripcion}</p>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Reportado por: <span className="font-medium">{incident.reportadoPor}</span>
+                  <p className="text-gray-700 mb-3 font-medium">{incident.descripcion}</p>
+                  <p className="text-sm text-gray-600 mb-4 font-medium">
+                    Reportado por: <span className="text-gray-900 font-bold">{incident.reportadoPor}</span>
                   </p>
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
-                      <span>{incident.ubicacion}</span>
+                  <div className="flex items-center gap-6 text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-cyan-500" />
+                      <span className="font-medium">{incident.ubicacion}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      <span>{incident.timestamp}</span>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-cyan-500" />
+                      <span className="font-medium">{incident.timestamp}</span>
                     </div>
                   </div>
                 </div>
@@ -567,39 +548,39 @@ const {
         </div>
       </div>
 
-      {/* Modal de Cambiar Estado */}
+      {/* Modal mejorado */}
       {selectedIncident && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border-t-4 border-cyan-500">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Cambiar Estado</h2>
               <button
                 onClick={() => setSelectedIncident(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 disabled={updating}
               >
-                <X className="w-5 h-5 text-gray-600" />
+                <X className="w-6 h-6 text-gray-600" />
               </button>
             </div>
 
-            <div className="mb-6">
-              <p className="text-gray-700 mb-2"><strong>Incidente:</strong> {selectedIncident.tipo}</p>
-              <p className="text-gray-700 mb-2"><strong>Ubicación:</strong> {selectedIncident.ubicacion}</p>
-              <p className="text-gray-700 mb-2"><strong>Reportado por:</strong> {selectedIncident.reportadoPor}</p>
-              <p className="text-gray-700"><strong>Estado actual:</strong> {selectedIncident.estado}</p>
+            <div className="mb-6 space-y-2 bg-gray-50 p-4 rounded-lg">
+              <p className="text-gray-700"><strong className="text-gray-900">Incidente:</strong> {selectedIncident.tipo}</p>
+              <p className="text-gray-700"><strong className="text-gray-900">Ubicación:</strong> {selectedIncident.ubicacion}</p>
+              <p className="text-gray-700"><strong className="text-gray-900">Reportado por:</strong> {selectedIncident.reportadoPor}</p>
+              <p className="text-gray-700"><strong className="text-gray-900">Estado actual:</strong> {selectedIncident.estado}</p>
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+              <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm font-medium">
                 {error}
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <button
                 onClick={() => updateIncidentStatus(selectedIncident.id, INCIDENT_STATUS.PENDING)}
                 disabled={updating}
-                className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
               >
                 {updating ? (
                   <span className="flex items-center gap-2">
@@ -613,21 +594,21 @@ const {
               <button
                 onClick={() => updateIncidentStatus(selectedIncident.id, INCIDENT_STATUS.IN_PROGRESS)}
                 disabled={updating}
-                className="w-full px-4 py-3 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 font-semibold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 font-bold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
               >
                 En Atención
               </button>
               <button
                 onClick={() => updateIncidentStatus(selectedIncident.id, INCIDENT_STATUS.COMPLETED)}
                 disabled={updating}
-                className="w-full px-4 py-3 bg-green-100 hover:bg-green-200 text-green-800 font-semibold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-green-100 hover:bg-green-200 text-green-800 font-bold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
               >
                 Resuelto
               </button>
               <button
                 onClick={() => updateIncidentStatus(selectedIncident.id, INCIDENT_STATUS.REJECTED)}
                 disabled={updating}
-                className="w-full px-4 py-3 bg-red-100 hover:bg-red-200 text-red-800 font-semibold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-red-100 hover:bg-red-200 text-red-800 font-bold rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
               >
                 Rechazado
               </button>
@@ -636,7 +617,7 @@ const {
             <button
               onClick={() => setSelectedIncident(null)}
               disabled={updating}
-              className="w-full mt-4 px-4 py-3 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-lg border border-gray-300 transition-colors disabled:opacity-50"
+              className="w-full mt-4 px-4 py-3 bg-white hover:bg-gray-50 text-gray-700 font-bold rounded-lg border-2 border-gray-300 transition-colors disabled:opacity-50 shadow-sm hover:shadow-md"
             >
               Cancelar
             </button>
@@ -644,7 +625,6 @@ const {
         </div>
       )}
       
-      {/* 🍞 Contenedor de Toasts */}
       <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
     </div>
   );
