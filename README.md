@@ -59,6 +59,16 @@ Además, el procesamiento en segundo plano se ejecuta con Airflow dentro de un c
 ### 🔹 Node.js + npm  
 Versión recomendada: **Node 18+**
 
+### 🔹 Python 3.13
+Para las funciones Lambda
+
+### 🔹 AWS CLI configurado
+Con credenciales de acceso
+### 🔹 Node.js + npm  
+Versión recomendada: **Node 18+**
+
+---
+
 ## ⚙️ Instalación del proyecto
 
 ```bash
@@ -100,7 +110,21 @@ Finalmente, para desplegar todo el backend en AWS:
 ```bash
 sls deploy
 ```
+Esto desplegará:
+- ✅ **10 funciones Lambda** (CRUD de incidentes, usuarios, WebSocket)
+- ✅ **API REST** con endpoints HTTP
+- ✅ **API WebSocket** para notificaciones en tiempo real
+- ✅ **3 tablas DynamoDB** con índices GSI
+- ✅ **Roles y permisos IAM**
 
+### Frontend (React + TypeScript)
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+---
 
 ## 📡 Endpoints Disponibles
 
