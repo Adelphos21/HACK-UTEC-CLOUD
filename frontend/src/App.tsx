@@ -7,7 +7,7 @@ import type { User } from './types';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [, setToken] = useState<string | null>(null);
   const [showRegister, setShowRegister] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -19,18 +19,21 @@ function App() {
         const savedUserData = localStorage.getItem('user_data');
         
         
+        
         if (savedToken && savedUserData) {
           const userData = JSON.parse(savedUserData);
+        
           
           setUser(userData);
           setToken(savedToken);
         } else {
-          
+        
         }
       } catch (error) {
-        console.error('❌ Error restaurando sesión:', error);
-        // Si hay error, limpiar datos corruptos
+        console.error(' Error restaurando sesión:', error);
+        
         localStorage.removeItem('access_token');
+        localStorage.removeItem('token');
         localStorage.removeItem('user_data');
         localStorage.removeItem('user_id');
       } finally {
@@ -42,7 +45,7 @@ function App() {
   }, []);
 
   const handleLogin = (userData: User, authToken: string) => {
-    console.log('Login exitoso:', userData);
+    console.log(' Login exitoso:', userData);
     
     // Guardar en estado
     setUser(userData);
@@ -51,6 +54,7 @@ function App() {
     
     // Persistir en localStorage
     localStorage.setItem('access_token', authToken);
+    localStorage.setItem('token', authToken); 
     localStorage.setItem('user_data', JSON.stringify(userData));
     localStorage.setItem('user_id', userData.user_id ?? '');
     
@@ -60,18 +64,19 @@ function App() {
   const handleLogout = () => {
     
     
-    // Limpiar estado
+    // Limpiar estado (esto desmontará los dashboards y ejecutará el cleanup de useWebSocket)
     setUser(null);
     setToken(null);
     setShowRegister(false);
     
     // Limpiar localStorage
     localStorage.removeItem('access_token');
+    localStorage.removeItem('token'); 
     localStorage.removeItem('user_data');
     localStorage.removeItem('user_id');
     localStorage.removeItem('refresh_token');
     
-    console.log(' Sesión cerrada');
+    
   };
 
   const handleShowRegister = () => {

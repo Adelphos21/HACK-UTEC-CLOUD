@@ -15,29 +15,31 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [toasts, setToasts] = useState<Notification[]>([]);
 
   // 🔔 Hook de WebSocket
-  const {
-    isConnected,
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-    clearNotifications,
-    clearNotification
-  } = useWebSocket({
-    userId: user.user_id,
-    rol: user.rol,
-    onNotification: (notification) => {
-      // Mostrar toast cuando llega una nueva notificación
-      setToasts(prev => [...prev, notification]);
-      
-      // Si es una actualización de incidente del estudiante, recargar la lista
-      if (notification.type === 'actualizacion_incidente' || 
-          notification.type === 'incidente_editado' ||
-          notification.type === 'cambio_estado') {
-        loadIncidents();
-      }
+const {
+  isConnected,
+  notifications,
+  unreadCount,
+  markAsRead,
+  markAllAsRead,
+  clearNotifications,
+  clearNotification,
+  
+} = useWebSocket({
+  userId: user.user_id,
+  rol: user.rol,
+  token: localStorage.getItem('access_token'), // ✅ Pasar el token desde localStorage
+  onNotification: (notification) => {
+    // Mostrar toast cuando llega una nueva notificación
+    setToasts(prev => [...prev, notification]);
+    
+    // Si es una actualización de incidente del estudiante, recargar la lista
+    if (notification.type === 'actualizacion_incidente' || 
+        notification.type === 'incidente_editado' ||
+        notification.type === 'cambio_estado') {
+      loadIncidents();
     }
-  });
+  }
+});
 
   const removeToast = (toastId: string) => {
     setToasts(prev => prev.filter(t => t.id !== toastId));

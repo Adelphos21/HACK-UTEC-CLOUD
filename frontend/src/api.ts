@@ -247,23 +247,6 @@ const handleResponse = async <T,>(response: Response): Promise<ApiResponse<T>> =
   }
 };
 
-// Helper para decodificar JWT (sin verificar firma)
-const decodeJWT = (token: string): any => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error('Error decodificando JWT:', error);
-    return null;
-  }
-};
 
 // Helper para obtener headers con autenticación
 const getAuthHeaders = (token?: string): HeadersInit => {
@@ -465,6 +448,8 @@ export const websocketApi = {
     
     if (token) {
       url += `&token=${encodeURIComponent(token)}`;
+    } else {
+      console.warn(" No hay token al conectar WebSocket");
     }
     
     return new WebSocket(url);
