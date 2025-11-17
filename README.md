@@ -68,7 +68,7 @@ Con credenciales de acceso
 Versión recomendada: **Node 18+**
 
 ---
-
+![Diagrama](./Diagrama.png)
 ## ⚙️ Instalación del proyecto
 
 ```bash
