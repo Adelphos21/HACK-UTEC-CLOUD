@@ -14,32 +14,27 @@ const StudentDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [error, setError] = useState<string>('');
   const [toasts, setToasts] = useState<Notification[]>([]);
 
-  // 🔔 Hook de WebSocket
-const {
-  isConnected,
-  notifications,
-  unreadCount,
-  markAsRead,
-  markAllAsRead,
-  clearNotifications,
-  clearNotification,
-  
-} = useWebSocket({
-  userId: user.user_id,
-  rol: user.rol,
-  token: localStorage.getItem('access_token'), // ✅ Pasar el token desde localStorage
-  onNotification: (notification) => {
-    // Mostrar toast cuando llega una nueva notificación
-    setToasts(prev => [...prev, notification]);
-    
-    // Si es una actualización de incidente del estudiante, recargar la lista
-    if (notification.type === 'actualizacion_incidente' || 
-        notification.type === 'incidente_editado' ||
-        notification.type === 'cambio_estado') {
-      loadIncidents();
+  const {
+    isConnected,
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    clearNotifications,
+    clearNotification,
+  } = useWebSocket({
+    userId: user.user_id,
+    rol: user.rol,
+    token: localStorage.getItem('access_token'),
+    onNotification: (notification) => {
+      setToasts(prev => [...prev, notification]);
+      if (notification.type === 'actualizacion_incidente' || 
+          notification.type === 'incidente_editado' ||
+          notification.type === 'cambio_estado') {
+        loadIncidents();
+      }
     }
-  }
-});
+  });
 
   const removeToast = (toastId: string) => {
     setToasts(prev => prev.filter(t => t.id !== toastId));
@@ -54,11 +49,9 @@ const {
     created_by: user.user_id || ''
   });
 
-  // 🔧 Función auxiliar para formatear fechas de forma segura
   const formatDate = (dateString: string | undefined): { timestamp: string; fecha: string } => {
     try {
       if (!dateString) {
-        // Si no hay fecha, usar la actual
         const now = new Date();
         return {
           timestamp: now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
@@ -68,7 +61,6 @@ const {
 
       const date = new Date(dateString);
       
-      // Verificar si la fecha es válida
       if (isNaN(date.getTime())) {
         console.warn('Fecha inválida recibida:', dateString);
         const now = new Date();
@@ -92,7 +84,6 @@ const {
     }
   };
 
-  // 🔧 Función para convertir datos de API a formato del componente
   const mapIncidentFromAPI = (inc: any): Incident => {
     const { timestamp, fecha } = formatDate(inc.created_at);
     
@@ -109,7 +100,6 @@ const {
     };
   };
 
-  // Cargar incidentes al montar el componente
   useEffect(() => {
     loadIncidents();
   }, []);
@@ -119,7 +109,6 @@ const {
     setError('');
     
     try {
-      // Obtener user_id del prop user (que ya está en memoria)
       const userId = user.user_id;
       
       if (!userId) {
@@ -128,7 +117,6 @@ const {
         return;
       }
 
-      
       const response = await incidentsApi.getByStudent(userId);
       
       if (response.success && response.data) {
@@ -151,22 +139,13 @@ const {
     setError('');
     
     try {
-      
-      
       const response = await incidentsApi.create(newReport);
       
-      
-      
       if (response.success && response.data) {
-        // Convertir el incidente usando la función auxiliar
         const newIncident = mapIncidentFromAPI(response.data);
-        
-        
-        
         setIncidents([newIncident, ...incidents]);
         setShowReportForm(false);
         
-        // Reset form
         setNewReport({
           type: INCIDENT_TYPES.SECURITY,
           floor: 1,
@@ -176,7 +155,6 @@ const {
           created_by: user.user_id || ''
         });
         
-        // Mostrar mensaje de éxito
         alert('✅ Incidente reportado exitosamente');
       } else {
         setError(response.error || response.message || 'Error al crear el reporte');
@@ -191,20 +169,20 @@ const {
 
   const getUrgencyColor = (urgencia: string): string => {
     const colors: Record<string, string> = {
-      'Baja': 'bg-green-100 text-green-800',
-      'Media': 'bg-yellow-100 text-yellow-800',
-      'Alta': 'bg-orange-100 text-orange-800',
-      'Crítica': 'bg-red-100 text-red-800'
+      'Baja': 'bg-green-100 text-green-800 border-green-200',
+      'Media': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'Alta': 'bg-orange-100 text-orange-800 border-orange-200',
+      'Crítica': 'bg-red-100 text-red-800 border-red-200'
     };
     return colors[urgencia] || colors['Media'];
   };
 
   const getStatusColor = (estado: string): string => {
     const colors: Record<string, string> = {
-      'Pendiente': 'bg-gray-100 text-gray-800',
-      'En Atención': 'bg-cyan-100 text-cyan-800',
-      'Resuelto': 'bg-green-100 text-green-800',
-      'Rechazado': 'bg-red-100 text-red-800'
+      'Pendiente': 'bg-gray-100 text-gray-800 border-gray-200',
+      'En Atención': 'bg-cyan-100 text-cyan-800 border-cyan-200',
+      'Resuelto': 'bg-green-100 text-green-800 border-green-200',
+      'Rechazado': 'bg-red-100 text-red-800 border-red-200'
     };
     return colors[estado] || colors['Pendiente'];
   };
@@ -215,20 +193,23 @@ const {
   const pending = incidents.filter(i => i.estado === 'Pendiente').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-cyan-500 rounded-lg p-2">
-              <span className="text-white text-xl font-bold">SOS</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header mejorado */}
+      <header className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b-4 border-cyan-500 px-6 py-4 shadow-xl">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-4">
+            <div className="bg-white rounded-xl p-3 shadow-lg">
+              <div className="flex items-center">
+                <span className="text-gray-900 text-2xl font-bold tracking-tight">Alerta</span>
+                <span className="text-cyan-500 text-2xl font-bold tracking-tight">UTEC</span>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Mis Reportes</h1>
-              <p className="text-sm text-gray-600">Bienvenido, {user.nombre} ({user.rol})</p>
+            <div className="border-l-2 border-gray-600 pl-4">
+              <h1 className="text-2xl font-bold text-white tracking-tight">Mis Reportes</h1>
+              <p className="text-sm text-gray-300">Bienvenido, <span className="font-semibold">{user.nombre}</span> • <span className="text-cyan-400 font-semibold">{user.rol}</span></p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            {/* 🔔 Panel de Notificaciones */}
+          <div className="flex items-center gap-3">
             <NotificationsPanel
               notifications={notifications}
               unreadCount={unreadCount}
@@ -238,17 +219,16 @@ const {
               onClearAll={clearNotifications}
             />
             
-            {/* Indicador de conexión WebSocket */}
             {!isConnected && (
-              <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+              <div className="flex items-center gap-2 text-xs text-yellow-300 bg-yellow-900/30 px-3 py-2 rounded-lg border border-yellow-700 animate-pulse">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
                 Reconectando...
               </div>
             )}
             
             <button
               onClick={onLogout}
-              className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              className="flex items-center gap-2 px-4 py-2.5 text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-lg transition-all duration-200 font-medium"
             >
               <LogOut className="w-5 h-5" />
               <span>Cerrar Sesión</span>
@@ -259,11 +239,11 @@ const {
 
       <div className="max-w-7xl mx-auto p-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
+          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-6 py-4 rounded-lg mb-6 shadow-md">
+            <span className="font-medium">{error}</span>
             <button 
               onClick={loadIncidents}
-              className="ml-4 underline hover:no-underline"
+              className="ml-4 underline hover:no-underline font-semibold"
             >
               Reintentar
             </button>
@@ -273,10 +253,10 @@ const {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Mis Incidentes</h2>
+              <h2 className="text-3xl font-bold text-gray-900">Mis Incidentes</h2>
               <button
                 onClick={() => setShowReportForm(true)}
-                className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 <Plus className="w-5 h-5" />
                 Nuevo Reporte
@@ -284,16 +264,16 @@ const {
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
-                <span className="ml-3 text-gray-600">Cargando incidentes...</span>
+              <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl shadow-lg">
+                <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mb-4" />
+                <span className="text-gray-600 font-medium">Cargando incidentes...</span>
               </div>
             ) : incidents.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                <p className="text-gray-500 mb-4">No has reportado ningún incidente</p>
+              <div className="bg-white rounded-xl shadow-lg p-16 text-center border-2 border-dashed border-gray-300">
+                <p className="text-gray-500 mb-6 text-lg font-medium">No has reportado ningún incidente</p>
                 <button
                   onClick={() => setShowReportForm(true)}
-                  className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white px-8 py-3 rounded-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   Crear tu primer reporte
                 </button>
@@ -301,27 +281,27 @@ const {
             ) : (
               <div className="space-y-4">
                 {incidents.map((incident) => (
-                  <div key={incident.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-3">
+                  <div key={incident.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-all duration-200 border-l-4 border-cyan-500 transform hover:-translate-y-1">
+                    <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-semibold text-gray-900">{incident.tipo}</h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getUrgencyColor(incident.urgencia)}`}>
+                        <h3 className="text-xl font-bold text-gray-900">{incident.tipo}</h3>
+                        <span className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 ${getUrgencyColor(incident.urgencia)} shadow-sm`}>
                           {incident.urgencia}
                         </span>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(incident.estado)}`}>
+                      <span className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 ${getStatusColor(incident.estado)} shadow-sm`}>
                         {incident.estado}
                       </span>
                     </div>
-                    <p className="text-gray-700 mb-4">{incident.descripcion}</p>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-4 h-4" />
-                        <span>{incident.ubicacion}</span>
+                    <p className="text-gray-700 mb-4 font-medium">{incident.descripcion}</p>
+                    <div className="flex items-center gap-6 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-cyan-500" />
+                        <span className="font-medium">{incident.ubicacion}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        <span>{incident.timestamp}</span>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-cyan-500" />
+                        <span className="font-medium">{incident.timestamp}</span>
                       </div>
                     </div>
                   </div>
@@ -331,24 +311,24 @@ const {
           </div>
 
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Mi Actividad</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-700">Total</span>
-                  <span className="text-2xl font-bold text-gray-900">{myIncidents}</span>
+            <div className="bg-white rounded-xl shadow-lg p-6 border-t-4 border-cyan-500 sticky top-6">
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">Mi Actividad</h3>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg">
+                  <span className="text-gray-700 font-semibold">Total</span>
+                  <span className="text-3xl font-bold text-gray-900">{myIncidents}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-700">Resueltos</span>
-                  <span className="text-2xl font-bold text-green-600">{resolved}</span>
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-lg">
+                  <span className="text-gray-700 font-semibold">Resueltos</span>
+                  <span className="text-3xl font-bold text-green-600">{resolved}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-700">En Atención</span>
-                  <span className="text-2xl font-bold text-cyan-600">{inProgress}</span>
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-cyan-50 to-cyan-100 rounded-lg">
+                  <span className="text-gray-700 font-semibold">En Atención</span>
+                  <span className="text-3xl font-bold text-cyan-600">{inProgress}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-700">Pendientes</span>
-                  <span className="text-2xl font-bold text-orange-600">{pending}</span>
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg">
+                  <span className="text-gray-700 font-semibold">Pendientes</span>
+                  <span className="text-3xl font-bold text-orange-600">{pending}</span>
                 </div>
               </div>
             </div>
@@ -356,36 +336,37 @@ const {
         </div>
       </div>
 
+      {/* Modal mejorado */}
       {showReportForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 max-h-[90vh] overflow-y-auto border-t-4 border-cyan-500">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Reportar Incidente</h2>
-                <p className="text-gray-600 text-sm">Completa los detalles del incidente</p>
+                <p className="text-gray-600 text-sm font-medium">Completa los detalles del incidente</p>
               </div>
               <button
                 onClick={() => setShowReportForm(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 disabled={submitting}
               >
-                <X className="w-5 h-5 text-gray-600" />
+                <X className="w-6 h-6 text-gray-600" />
               </button>
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+              <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm font-medium">
                 {error}
               </div>
             )}
 
             <form onSubmit={handleSubmitReport} className="space-y-4">
               <div>
-                <label className="block text-gray-700 font-medium mb-2">Tipo de Incidente</label>
+                <label className="block text-gray-700 font-bold mb-2 uppercase tracking-wide text-sm">Tipo de Incidente</label>
                 <select
                   value={newReport.type}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, type: e.target.value as typeof newReport.type })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all font-medium"
                   disabled={submitting}
                 >
                   {Object.entries(INCIDENT_TYPE_LABELS).map(([value, label]) => (
@@ -396,27 +377,27 @@ const {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-gray-700 font-medium mb-2">Piso</label>
+                  <label className="block text-gray-700 font-bold mb-2 uppercase tracking-wide text-sm">Piso</label>
                   <select
                     value={newReport.floor}
                     onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, floor: parseInt(e.target.value) })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all font-medium"
                     disabled={submitting}
                   >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(floor => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(floor => (
                       <option key={floor} value={floor}>Piso {floor}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-gray-700 font-medium mb-2">Ambiente</label>
+                  <label className="block text-gray-700 font-bold mb-2 uppercase tracking-wide text-sm">Ambiente</label>
                   <input
                     type="text"
                     value={newReport.ambient}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setNewReport({ ...newReport, ambient: e.target.value })}
                     placeholder="Ej: S1101"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all font-medium"
                     required
                     disabled={submitting}
                   />
@@ -424,24 +405,24 @@ const {
               </div>
 
               <div>
-                <label className="block text-gray-700 font-medium mb-2">Descripción</label>
+                <label className="block text-gray-700 font-bold mb-2 uppercase tracking-wide text-sm">Descripción</label>
                 <textarea
                   value={newReport.description}
                   onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNewReport({ ...newReport, description: e.target.value })}
                   placeholder="Describe el incidente..."
                   rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all font-medium"
                   required
                   disabled={submitting}
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-medium mb-2">Urgencia</label>
+                <label className="block text-gray-700 font-bold mb-2 uppercase tracking-wide text-sm">Urgencia</label>
                 <select
                   value={newReport.urgency}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewReport({ ...newReport, urgency: e.target.value as typeof newReport.urgency })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all font-medium"
                   disabled={submitting}
                 >
                   {Object.entries(URGENCY_LABELS).map(([value, label]) => (
@@ -454,11 +435,11 @@ const {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold py-3 rounded-lg transition-colors disabled:bg-cyan-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white font-bold py-3 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
                 >
                   {submitting ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                       Enviando...
                     </>
                   ) : (
@@ -469,7 +450,7 @@ const {
                   type="button"
                   onClick={() => setShowReportForm(false)}
                   disabled={submitting}
-                  className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3 rounded-lg border border-gray-300 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-bold py-3 rounded-lg border-2 border-gray-300 transition-colors disabled:opacity-50 shadow-md hover:shadow-lg"
                 >
                   Cancelar
                 </button>
@@ -479,7 +460,6 @@ const {
         </div>
       )}
       
-      {/* 🍞 Contenedor de Toasts */}
       <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
     </div>
   );

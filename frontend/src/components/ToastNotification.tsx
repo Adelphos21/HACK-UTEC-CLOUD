@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { X, AlertCircle, CheckCircle, Info, Bell } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { Notification } from '../hooks/useWebSocket';
 
 interface ToastNotificationProps {
   notification: Notification;
   onClose: () => void;
-  duration?: number; // milisegundos
+  duration?: number;
 }
 
 const ToastNotification: React.FC<ToastNotificationProps> = ({
@@ -17,10 +17,8 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
   const [isLeaving, setIsLeaving] = useState(false);
 
   useEffect(() => {
-    // Animación de entrada
     setTimeout(() => setIsVisible(true), 10);
 
-    // Auto cerrar después de la duración
     const timer = setTimeout(() => {
       handleClose();
     }, duration);
@@ -32,32 +30,32 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
     setIsLeaving(true);
     setTimeout(() => {
       onClose();
-    }, 300); // Duración de la animación de salida
+    }, 300);
   };
 
+  
   const getIcon = () => {
     switch (notification.type) {
       case 'nuevo_incidente':
-        return <AlertCircle className="w-5 h-5 text-orange-500" />;
-      case 'cambio_estado':
-      case 'cambio_estado':
-        return <Info className="w-5 h-5 text-blue-500" />;
+        return '🆕';
+      case 'estado_cambiado':
       case 'actualizacion_incidente':
+        return '🔄';
       case 'incidente_editado':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return '✏️';
       default:
-        return <Bell className="w-5 h-5 text-gray-500" />;
+        return '🔔';
     }
   };
 
+  
   const getBgColor = () => {
     switch (notification.type) {
       case 'nuevo_incidente':
         return 'bg-orange-50 border-orange-200';
-      case 'cambio_estado':
-      case 'cambio_estado':
-        return 'bg-blue-50 border-blue-200';
+      case 'estado_cambiado':
       case 'actualizacion_incidente':
+        return 'bg-blue-50 border-blue-200';
       case 'incidente_editado':
         return 'bg-green-50 border-green-200';
       default:
@@ -68,7 +66,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
   return (
     <div
       className={`
-        fixed top-4 right-4 w-96 bg-white rounded-lg shadow-2xl border-2 pointer-events-auto z-[9999]
+        w-96 bg-white rounded-lg shadow-2xl border-2 pointer-events-auto
         transition-all duration-300 transform
         ${getBgColor()}
         ${isVisible && !isLeaving ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
@@ -76,25 +74,25 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
     >
       <div className="p-4">
         <div className="flex gap-3">
-          <div className="flex-shrink-0">
+          {/* Ícono */}
+          <div className="flex-shrink-0 text-2xl">
             {getIcon()}
           </div>
           
+          {/* Contenido */}
           <div className="flex-1 min-w-0">
+            {/* ✅ Título descriptivo */}
             <p className="text-sm font-semibold text-gray-900 mb-1">
-              Nueva notificación
+              {notification.title}
             </p>
+            
+            {/* ✅ Mensaje */}
             <p className="text-sm text-gray-700">
               {notification.message}
             </p>
-            
-            {notification.data && notification.data.descripcion && (
-              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                {notification.data.descripcion}
-              </p>
-            )}
           </div>
 
+          {/* Botón cerrar */}
           <button
             onClick={handleClose}
             className="flex-shrink-0 p-1 hover:bg-gray-200 rounded transition-colors"
@@ -117,12 +115,8 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
 
       <style>{`
         @keyframes shrink {
-          from {
-            width: 100%;
-          }
-          to {
-            width: 0%;
-          }
+          from { width: 100%; }
+          to { width: 0%; }
         }
       `}</style>
     </div>

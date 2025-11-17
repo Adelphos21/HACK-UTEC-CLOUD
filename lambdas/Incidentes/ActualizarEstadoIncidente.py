@@ -10,6 +10,22 @@ ROLES_AUTORIZADOS = ["Personal administrativo", "Autoridad"]
 ddb = boto3.resource("dynamodb")
 table = ddb.Table(os.environ["INCIDENTS_TABLE"])
 users_table = ddb.Table(os.environ["USERS_TABLE"])
+INCIDENT_TYPE_LABELS = {
+    'infrastructure': 'Infraestructura',
+    'electric_failure': 'Falla Eléctrica',
+    'water_failure': 'Falla de Agua',
+    'security': 'Seguridad',
+    'cleaning': 'Limpieza',
+    'technology': 'Tecnología',
+    'other': 'Otro'
+}
+
+STATUS_LABELS = {
+    'pending': 'Pendiente',
+    'in_progress': 'En Atención',
+    'completed': 'Resuelto',
+    'rejected': 'Rechazado'
+}
 
 def lambda_handler(event, context):
     try:
@@ -67,24 +83,34 @@ def lambda_handler(event, context):
                 }]
             }
         )
+        
+
         # Notificación 1: Cambio de estado → Personal administrativo
+        incident_type_label = INCIDENT_TYPE_LABELS.get(incident.get("type"), "Incidente")
+        
         message_admins = {
             "tipo": "estado_cambiado",
             "incident_id": incident_id,
+            "tipo_incidente": incident_type_label,  
+            "piso": incident.get("floor"),          
+            "ambiente": incident.get("ambient"),    
             "estado_anterior": old_status,
             "nuevo_estado": new_status,
             "actualizado_por": user_id,
             "timestamp": now
         }
-
         notify_role(message_admins, "Personal administrativo")
         # Notificación 2: Notificar al estudiante que reportó el incidente
         if created_by and created_by != "unknown":
+            new_status_label = STATUS_LABELS.get(new_status, new_status)
+            
             message_student = {
                 "tipo": "actualizacion_incidente",
                 "incident_id": incident_id,
-                "mensaje": f"Tu incidente ha cambiado de estado: {old_status} → {new_status}",
+                "tipo_incidente": incident_type_label,  
+                "mensaje": f"Tu incidente ha cambiado de estado",
                 "nuevo_estado": new_status,
+                "nuevo_estado_label": new_status_label,
                 "timestamp": now
             }
             notify_user(message_student, created_by)
