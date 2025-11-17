@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { authApi } from '../api';
 
 export const useAuth = () => {
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
-    // Verificar si hay un token guardado al cargar
     const savedToken = localStorage.getItem('access_token');
     if (savedToken) {
       setToken(savedToken);
@@ -16,40 +14,16 @@ export const useAuth = () => {
 
   const saveToken = (newToken: string) => {
     localStorage.setItem('access_token', newToken);
+    localStorage.setItem('token', newToken); // ✅ Guardar también como 'token'
     setToken(newToken);
     setIsAuthenticated(true);
   };
 
   const removeToken = () => {
     localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token'); // ✅ Limpiar ambos
     setToken(null);
     setIsAuthenticated(false);
-  };
-
-  const refreshAuthToken = async () => {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) {
-      removeToken();
-      return false;
-    }
-
-    try {
-      const response = await authApi.refreshToken(refreshToken);
-      if (response.success && response.data) {
-        saveToken(response.data.access_token);
-        if (response.data.refresh_token) {
-          localStorage.setItem('refresh_token', response.data.refresh_token);
-        }
-        return true;
-      } else {
-        removeToken();
-        return false;
-      }
-    } catch (error) {
-      removeToken();
-      return false;
-    }
   };
 
   return {
@@ -57,6 +31,5 @@ export const useAuth = () => {
     isAuthenticated,
     saveToken,
     removeToken,
-    refreshAuthToken
   };
 };

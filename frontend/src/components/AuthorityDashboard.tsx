@@ -24,28 +24,31 @@ const AuthorityDashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   });
 
   // 🔔 Hook de WebSocket
-  const {
-    isConnected,
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-    clearNotifications,
-    clearNotification
-  } = useWebSocket({
-    userId: user.user_id,
-    rol: user.rol,
-    onNotification: (notification) => {
-      // Mostrar toast
-      setToasts(prev => [...prev, notification]);
-      
-      // Recargar incidentes cuando hay cambios
-      if (notification.type === 'nuevo_incidente' || 
-          notification.type === 'cambio_estado') {
-        loadIncidents();
-      }
+// 🔔 Hook de WebSocket
+const {
+  isConnected,
+  notifications,
+  unreadCount,
+  markAsRead,
+  markAllAsRead,
+  clearNotifications,
+  clearNotification,
+  
+} = useWebSocket({
+  userId: user.user_id,
+  rol: user.rol,
+  token: localStorage.getItem('access_token'), // ✅ Pasar el token desde localStorage
+  onNotification: (notification) => {
+    // Mostrar toast
+    setToasts(prev => [...prev, notification]);
+    
+    // Recargar incidentes cuando hay cambios
+    if (notification.type === 'nuevo_incidente' || 
+        notification.type === 'cambio_estado') {
+      loadIncidents();
     }
-  });
+  }
+});
 
   const removeToast = (toastId: string) => {
     setToasts(prev => prev.filter(t => t.id !== toastId));
